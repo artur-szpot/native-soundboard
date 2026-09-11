@@ -1,12 +1,16 @@
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { StatusBar } from "expo-status-bar";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const chime = require("./assets/chime.wav");
+import { useTheme } from "../src/theme/ThemeProvider";
 
-export default function App() {
+const chime = require("../assets/chime.wav");
+
+export default function SoundboardScreen() {
   const player = useAudioPlayer(chime);
   const status = useAudioPlayerStatus(player);
+  const { colors, statusBarStyle } = useTheme();
   const isDisabled = !status.isLoaded || status.playing;
 
   const playSound = async () => {
@@ -22,7 +26,7 @@ export default function App() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <Pressable
         accessibilityLabel="Play chime"
         accessibilityRole="button"
@@ -31,24 +35,24 @@ export default function App() {
         onPress={playSound}
         style={({ pressed }) => [
           styles.button,
+          { backgroundColor: colors.accent, borderColor: colors.border, shadowColor: colors.shadow },
           pressed && styles.buttonPressed,
-          status.playing && styles.buttonPlaying,
+          status.playing && { backgroundColor: colors.playing },
           !status.isLoaded && styles.buttonLoading,
         ]}
       >
-        <Text style={styles.buttonLabel}>
+        <Text style={[styles.buttonLabel, { color: colors.text }]}>
           {status.playing ? "PLAYING" : status.isLoaded ? "PLAY" : "LOADING"}
         </Text>
       </Pressable>
-      <StatusBar style="dark" />
-    </View>
+      <StatusBar style={statusBarStyle} />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2EFE8",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -57,11 +61,8 @@ const styles = StyleSheet.create({
     height: 184,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E74E36",
-    borderColor: "#191919",
     borderWidth: 3,
     borderRadius: 6,
-    shadowColor: "#191919",
     shadowOffset: { width: 8, height: 8 },
     shadowOpacity: 1,
     shadowRadius: 0,
@@ -72,14 +73,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 3, height: 3 },
     elevation: 3,
   },
-  buttonPlaying: {
-    backgroundColor: "#F3B63F",
-  },
   buttonLoading: {
     opacity: 0.55,
   },
   buttonLabel: {
-    color: "#191919",
     fontFamily: "Courier",
     fontSize: 22,
     fontWeight: "700",
