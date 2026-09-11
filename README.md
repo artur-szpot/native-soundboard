@@ -2,7 +2,7 @@
 
 Native Soundboard is an early-stage, free and open source mobile soundboard built with React Native, Expo, and TypeScript. Its goal is to make organizing and playing personal sound collections quick on both iOS and Android.
 
-## Current MVP
+## Current Application
 
 The application currently provides:
 
@@ -11,6 +11,13 @@ The application currently provides:
 - Loading, pressed, playing, and disabled feedback.
 - Protection against overlapping playback from repeated taps.
 - Portrait and landscape support.
+- An Expo Router navigation shell with safe-area handling and a startup error
+  boundary.
+- System-aware light and dark theme tokens.
+- Versioned SQLite metadata migrations and an immutable main collection root.
+- Strict TypeScript domain models and repository contracts.
+- Jest and React Native Testing Library coverage for migrations and the current
+  soundboard interaction.
 
 Collections, custom media imports, Material Icons, and the editing screens are roadmap items and are not implemented yet.
 
@@ -38,6 +45,10 @@ See the [product plan](plan/p0-general-plans.md) for planned screens, data model
 - TypeScript with strict type checking.
 - `expo-audio` for native audio playback.
 - `expo-asset` for bundled asset support.
+- `expo-router` for native navigation.
+- `expo-sqlite` for versioned local metadata storage.
+- `react-native-safe-area-context` for safe-area layout.
+- `jest-expo` and React Native Testing Library for automated tests.
 - Material Icons through Expo-compatible vector icons when icon support is implemented.
 
 ## Getting Started
@@ -77,25 +88,32 @@ Run the available static and Expo configuration checks:
 
 ```sh
 npm exec -- tsc --noEmit
+npm test -- --runInBand
 npx expo-doctor
 ```
 
 Playback and orientation should also be checked on a physical device. The
-repository does not yet include an automated test suite.
+automated suite does not replace physical-device audio, orientation, theme,
+and accessibility checks.
 
 ## Project Structure
 
 ```text
-App.tsx                       Current application UI and playback behavior
+app/                          Expo Router root layout and soundboard route
 assets/                       Bundled application and audio assets
 app.json                      Expo application configuration
-index.ts                      React Native entry point
+src/database/                 SQLite initialization and versioned migrations
+src/domain/                   TypeScript domain models
+src/repositories/             Persistence boundary contracts
+src/theme/                    System-aware theme tokens and provider
+__tests__/                    Migration and component tests
 plan/p0-general-plans.md      Product roadmap and open decisions
 AGENTS.md                     Repository guidance for coding agents
 ```
 
-The current prototype intentionally keeps its implementation in `App.tsx`.
-Future domain, storage, navigation, and screen modules should be introduced as the corresponding roadmap milestones begin, rather than preemptively.
+The current route still implements the one-button MVP. Repository
+implementations and additional routes should be introduced only as their
+corresponding roadmap milestones require them.
 
 ## User Media
 

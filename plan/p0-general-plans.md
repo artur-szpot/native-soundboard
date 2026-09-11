@@ -2,9 +2,12 @@
 
 ## Status
 
-Native Soundboard is in early development. The current MVP is a single square
-button that plays one bundled chime. The sections below describe the intended
-product and must not be treated as implemented behavior.
+Native Soundboard is in early development. The current app is a single square
+button that plays one bundled chime, backed by the Foundation architecture:
+Expo Router, safe-area and theme providers, a startup error boundary, versioned
+SQLite migrations, domain and repository contracts, and automated tests. The
+sections below describe the intended product and must not otherwise be treated
+as implemented behavior.
 
 ## Product Purpose
 
@@ -273,7 +276,7 @@ repository.
 - Repeated taps do not overlap playback.
 - Portrait and landscape support.
 
-### 1. Foundation
+### 1. Foundation (Complete)
 
 - Implement `expo-sqlite` metadata storage and versioned migrations.
 - Define TypeScript domain models and repository/service boundaries.
