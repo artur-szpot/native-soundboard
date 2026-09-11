@@ -1,8 +1,8 @@
-import { StatusBar } from 'expo-status-bar';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { StatusBar } from "expo-status-bar";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-const chime = require('./assets/chime.wav');
+const chime = require("./assets/chime.wav");
 
 export default function App() {
   const player = useAudioPlayer(chime);
@@ -37,7 +37,7 @@ export default function App() {
         ]}
       >
         <Text style={styles.buttonLabel}>
-          {status.playing ? 'PLAYING' : status.isLoaded ? 'PLAY' : 'LOADING'}
+          {status.playing ? "PLAYING" : status.isLoaded ? "PLAY" : "LOADING"}
         </Text>
       </Pressable>
       <StatusBar style="dark" />
@@ -48,20 +48,20 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2EFE8',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F2EFE8",
+    alignItems: "center",
+    justifyContent: "center",
   },
   button: {
     width: 184,
     height: 184,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E74E36',
-    borderColor: '#191919',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E74E36",
+    borderColor: "#191919",
     borderWidth: 3,
     borderRadius: 6,
-    shadowColor: '#191919',
+    shadowColor: "#191919",
     shadowOffset: { width: 8, height: 8 },
     shadowOpacity: 1,
     shadowRadius: 0,
@@ -73,15 +73,15 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   buttonPlaying: {
-    backgroundColor: '#F3B63F',
+    backgroundColor: "#F3B63F",
   },
   buttonLoading: {
     opacity: 0.55,
   },
   buttonLabel: {
-    color: '#191919',
-    fontFamily: 'Courier',
+    color: "#191919",
+    fontFamily: "Courier",
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });
