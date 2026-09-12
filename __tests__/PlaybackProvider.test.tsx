@@ -25,7 +25,7 @@ jest.mock("expo-audio", () => ({
 }));
 
 function Harness() {
-  const { activeSoundId, play } = usePlayback();
+  const { activeSoundId, play, playRandomizer } = usePlayback();
 
   return (
     <View>
@@ -35,6 +35,17 @@ function Harness() {
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => play("two", 2)}>
         <Text>Two</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() =>
+          playRandomizer("mix", [
+            { id: "one", name: "One", source: 1 },
+            { id: "two", name: "Two", source: 2 },
+          ])
+        }
+      >
+        <Text>Random</Text>
       </Pressable>
     </View>
   );
@@ -80,6 +91,20 @@ describe("PlaybackProvider", () => {
         shouldPlayInBackground: false,
       }),
     );
+  });
+
+  it("plays randomizer selections through the same global lock", async () => {
+    const screen = await render(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "Random" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Two" }));
+
+    expect(mockPlayer.replace).toHaveBeenCalledTimes(1);
+    expect(mockPlayer.play).toHaveBeenCalledTimes(1);
   });
 
   it("accepts another request after playback finishes", async () => {

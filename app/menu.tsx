@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter } from "expo-router";
+import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,6 +14,9 @@ const THEME_OPTIONS = ["system", "light", "dark"] as const;
 
 export default function MenuScreen() {
   const router = useRouter();
+  const { collectionId = "main" } = useLocalSearchParams<{
+    collectionId?: string;
+  }>();
   const { colors, statusBarStyle } = useTheme();
   const {
     buttonSize,
@@ -50,6 +53,30 @@ export default function MenuScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            router.push({
+              pathname: "/collections/create",
+              params: { parentId: collectionId },
+            } as Href)
+          }
+          style={({ pressed }) => [
+            styles.commandButton,
+            { borderColor: colors.border, backgroundColor: colors.accent },
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialIcons
+            color={colors.text}
+            name="create-new-folder"
+            size={24}
+          />
+          <Text style={[styles.commandLabel, { color: colors.text }]}>
+            CREATE COLLECTION
+          </Text>
+        </Pressable>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             BUTTON SIZE
@@ -203,6 +230,21 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     gap: 20,
+  },
+  commandButton: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+    borderRadius: 6,
+    borderWidth: 3,
+  },
+  commandLabel: {
+    fontFamily: "Courier",
+    fontSize: 15,
+    fontWeight: "700",
   },
   sectionTitle: {
     fontFamily: "Courier",

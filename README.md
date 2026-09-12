@@ -7,6 +7,13 @@ Native Soundboard is an early-stage, free and open source mobile soundboard buil
 The application currently provides:
 
 - A responsive grid of four original bundled sound effects.
+- Persisted directory and randomizer collections rooted at an immutable Main
+  collection, with seeded Favorites and Surprise Me examples.
+- Nested directory navigation with breadcrumbs and native stack back behavior.
+- Collection creation, sound membership organization, and cycle-safe collection
+  reparenting through accessible organizer screens.
+- Descendant-aware randomizers that deduplicate sounds, avoid recent repeats,
+  and share the global non-overlapping playback coordinator.
 - Fixed-square controls with Material play icons and accessible labels.
 - A dedicated menu screen for button size and theme controls, including a
   live square-button size preview.
@@ -17,12 +24,14 @@ The application currently provides:
   boundary.
 - System-aware light and dark theme tokens.
 - Persisted system, light, or dark theme selection and six button-size levels.
-- Versioned SQLite metadata migrations and an immutable main collection root.
+- Versioned SQLite metadata migrations and repository implementations for
+  sounds, memberships, and the collection tree.
 - Strict TypeScript domain models and repository contracts.
-- Jest and React Native Testing Library coverage for migrations and the current
-  soundboard interaction.
+- Jest and React Native Testing Library coverage for migrations, repositories,
+  randomizer selection, navigation, and collection-management interactions.
 
-Collections, custom media imports, and the editing screens are roadmap items and are not implemented yet.
+Sound and collection renaming, role changes, deletion, custom media imports,
+and full detail screens remain roadmap items and are not implemented yet.
 
 ## Product Direction
 
@@ -102,7 +111,7 @@ and accessibility checks.
 ## Project Structure
 
 ```text
-app/                          Expo Router layout, soundboard, and menu routes
+app/                          Expo Router soundboard, collection, organizer, and menu routes
 assets/                       Bundled application and audio assets
 app.json                      Expo application configuration
 src/database/                 SQLite initialization and versioned migrations
@@ -111,16 +120,18 @@ src/repositories/             Persistence boundary contracts
 src/playback/                 Shared single-sound playback coordination
 src/settings/                 Persisted button-size and theme preferences
 src/sounds/                   Bundled starter sound catalog
-src/components/               Reusable square sound controls
+src/components/               Reusable square sound and collection controls
+src/randomizer/               Session-scoped recent-selection history
+src/screens/                  Shared collection screen
 src/theme/                    System-aware theme tokens and provider
 __tests__/                    Migration and component tests
 plan/p0-general-plans.md      Product roadmap and open decisions
 AGENTS.md                     Repository guidance for coding agents
 ```
 
-The current route implements the multi-sound grid. Repository implementations
-for collection content and additional routes should be introduced only as
-their corresponding roadmap milestones require them.
+The soundboard and nested directory routes read collection content through the
+SQLite repositories. Organizer routes expose the milestone 3 membership and
+parent operations; broader editing remains deferred to later milestones.
 
 The four starter WAV files were synthesized specifically for this project and
 contain no external samples. Their generation details and provenance are

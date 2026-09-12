@@ -13,11 +13,18 @@ import {
     useState,
 } from "react";
 
+import { RandomizerHistory } from "../randomizer/RandomizerHistory";
+import type { PlayableSound } from "../sounds/starterSounds";
+
 interface PlaybackContextValue {
   activeSoundId: string | null;
   error: string | null;
   isBusy: boolean;
   play: (soundId: string, source: AudioSource) => boolean;
+  playRandomizer: (
+    randomizerId: string,
+    sounds: readonly PlayableSound[],
+  ) => boolean;
 }
 
 const PlaybackContext = createContext<PlaybackContextValue | null>(null);
@@ -27,6 +34,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const status = useAudioPlayerStatus(player);
   const activeSoundIdRef = useRef<string | null>(null);
   const playbackStartedRef = useRef(false);
+  const randomizerHistoryRef = useRef(new RandomizerHistory());
   const [activeSoundId, setActiveSoundId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +84,18 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     return true;
   };
 
+  const playRandomizer = (
+    randomizerId: string,
+    sounds: readonly PlayableSound[],
+  ) => {
+    if (activeSoundIdRef.current !== null) {
+      return false;
+    }
+
+    const selected = randomizerHistoryRef.current.select(randomizerId, sounds);
+    return selected ? play(selected.id, selected.source) : false;
+  };
+
   return (
     <PlaybackContext
       value={{
@@ -83,6 +103,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         error,
         isBusy: activeSoundId !== null,
         play,
+        playRandomizer,
       }}
     >
       {children}

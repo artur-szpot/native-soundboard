@@ -1,17 +1,24 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+    type AccessibilityActionEvent,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 
 import { usePlayback } from "../playback/PlaybackProvider";
 import type { ButtonSize } from "../settings/PreferencesProvider";
-import type { StarterSound } from "../sounds/starterSounds";
+import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
 
 interface SoundButtonProps {
+  onLongPress?: () => void;
   size: ButtonSize;
-  sound: StarterSound;
+  sound: PlayableSound;
 }
 
-export function SoundButton({ size, sound }: SoundButtonProps) {
+export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
   const { activeSoundId, isBusy, play } = usePlayback();
   const { colors } = useTheme();
   const isPlaying = activeSoundId === sound.id;
@@ -19,10 +26,21 @@ export function SoundButton({ size, sound }: SoundButtonProps) {
   return (
     <View style={[styles.item, { width: size }]}>
       <Pressable
+        accessibilityActions={
+          onLongPress
+            ? [{ name: "longpress", label: `Organize ${sound.name}` }]
+            : undefined
+        }
         accessibilityLabel={`Play ${sound.name}`}
         accessibilityRole="button"
         accessibilityState={{ disabled: isBusy }}
         disabled={isBusy}
+        onAccessibilityAction={(event: AccessibilityActionEvent) => {
+          if (event.nativeEvent.actionName === "longpress") {
+            onLongPress?.();
+          }
+        }}
+        onLongPress={onLongPress}
         onPress={() => play(sound.id, sound.source)}
         style={({ pressed }) => [
           styles.button,

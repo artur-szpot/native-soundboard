@@ -7,9 +7,12 @@ responsive grid of four original bundled sounds with shared single-sound
 playback, Material fallback icons, and persisted button-size and theme
 preferences. It is backed by the Foundation architecture: Expo Router,
 safe-area and theme providers, a startup error boundary, versioned SQLite
-migrations, domain and repository contracts, and automated tests. The sections
-below describe the intended product and must not otherwise be treated as
-implemented behavior.
+migrations, domain and repository contracts, and automated tests. Persisted
+directory and randomizer collections now support nested navigation,
+breadcrumbs, sound membership organization, cycle-safe reparenting, and
+descendant-aware random playback with recent-selection history. Later editing,
+media import, images, and release work below remains planned and must not be
+treated as implemented behavior.
 
 ## Product Purpose
 
@@ -293,7 +296,7 @@ repository.
 - Shared single-sound playback coordinator and interruption handling.
 - Persisted button-size and theme preferences.
 
-### 3. Collections and Navigation
+### 3. Collections and Navigation (Complete)
 
 - Main, directory, and randomizer collections.
 - Breadcrumbs and system-back behavior.
