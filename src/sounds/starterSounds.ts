@@ -1,4 +1,5 @@
 import type { AudioSource } from "expo-audio";
+import { resolveManagedAudio } from "../media/mediaPaths";
 
 export interface PlayableSound {
   id: string;
@@ -32,4 +33,16 @@ export function resolveBundledSound(
 ): PlayableSound | null {
   const source = bundledSources.get(mediaPath);
   return source === undefined ? null : { id, name, source };
+}
+
+export function resolvePlayableSound(
+  id: string,
+  name: string,
+  mediaPath: string,
+): PlayableSound | null {
+  const bundled = resolveBundledSound(id, name, mediaPath);
+  if (bundled) return bundled;
+
+  const file = resolveManagedAudio(mediaPath);
+  return file?.exists ? { id, name, source: file.uri } : null;
 }

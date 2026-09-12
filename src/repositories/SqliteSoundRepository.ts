@@ -1,3 +1,4 @@
+import { randomUUID } from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { Sound } from "../domain/models";
@@ -7,6 +8,7 @@ interface SoundRow {
   id: string;
   name: string;
   media_path: string;
+  original_filename?: string | null;
   icon_uri: string | null;
   created_at: number;
   updated_at: number;
@@ -17,6 +19,7 @@ function mapSound(row: SoundRow): Sound {
     id: row.id,
     name: row.name,
     mediaPath: row.media_path,
+    originalFilename: row.original_filename ?? null,
     iconUri: row.icon_uri,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -25,6 +28,55 @@ function mapSound(row: SoundRow): Sound {
 
 export class SqliteSoundRepository implements SoundRepository {
   constructor(private readonly database: SQLiteDatabase) {}
+
+  async create(
+    name: string,
+    mediaPath: string,
+    originalFilename: string,
+  ): Promise<Sound> {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new Error("Sound name is required.");
+    }
+    if (!mediaPath) {
+      throw new Error("Sound media is required.");
+    }
+
+    const id = randomUUID();
+    const timestamp = Date.now();
+    await this.database.withTransactionAsync(async () => {
+      await this.database.runAsync(
+        `INSERT INTO sounds
+         (id, name, media_path, original_filename, icon_uri, created_at, updated_at)
+         VALUES (?, ?, ?, ?, NULL, ?, ?)`,
+        id,
+        trimmedName,
+        mediaPath,
+        originalFilename,
+        timestamp,
+        timestamp,
+      );
+      await this.database.runAsync(
+        `INSERT INTO sound_collection_memberships
+         (sound_id, collection_id) VALUES (?, 'main')`,
+        id,
+      );
+    });
+
+    return {
+      id,
+      name: trimmedName,
+      mediaPath,
+      originalFilename,
+      iconUri: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.database.runAsync("DELETE FROM sounds WHERE id = ?", id);
+  }
 
   async getById(id: string): Promise<Sound | null> {
     const row = await this.database.getFirstAsync<SoundRow>(
@@ -42,6 +94,13 @@ export class SqliteSoundRepository implements SoundRepository {
        WHERE memberships.collection_id = ?
        ORDER BY sounds.name COLLATE NOCASE`,
       collectionId,
+    );
+    return rows.map(mapSound);
+  }
+
+  async listAll(): Promise<readonly Sound[]> {
+    const rows = await this.database.getAllAsync<SoundRow>(
+      "SELECT * FROM sounds ORDER BY name COLLATE NOCASE",
     );
     return rows.map(mapSound);
   }
@@ -80,6 +139,37 @@ export class SqliteSoundRepository implements SoundRepository {
        WHERE sound_id = ? AND collection_id = ?`,
       soundId,
       collectionId,
+    );
+  }
+
+  async replaceMedia(
+    id: string,
+    mediaPath: string,
+    originalFilename: string,
+  ): Promise<void> {
+    if (!mediaPath) {
+      throw new Error("Sound media is required.");
+    }
+    await this.database.runAsync(
+      `UPDATE sounds
+       SET media_path = ?, original_filename = ?, updated_at = ? WHERE id = ?`,
+      mediaPath,
+      originalFilename,
+      Date.now(),
+      id,
+    );
+  }
+
+  async updateName(id: string, name: string): Promise<void> {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new Error("Sound name is required.");
+    }
+    await this.database.runAsync(
+      "UPDATE sounds SET name = ?, updated_at = ? WHERE id = ?",
+      trimmedName,
+      Date.now(),
+      id,
     );
   }
 }

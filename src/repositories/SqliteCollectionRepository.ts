@@ -18,6 +18,7 @@ interface SoundRow {
   id: string;
   name: string;
   media_path: string;
+  original_filename?: string | null;
   icon_uri: string | null;
   created_at: number;
   updated_at: number;
@@ -40,6 +41,7 @@ function mapSound(row: SoundRow): Sound {
     id: row.id,
     name: row.name,
     mediaPath: row.media_path,
+    originalFilename: row.original_filename ?? null,
     iconUri: row.icon_uri,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -48,6 +50,26 @@ function mapSound(row: SoundRow): Sound {
 
 export class SqliteCollectionRepository implements CollectionRepository {
   constructor(private readonly database: SQLiteDatabase) {}
+
+  async delete(id: string): Promise<void> {
+    if (id === "main") {
+      throw new Error("Main cannot be deleted.");
+    }
+
+    await this.database.withTransactionAsync(async () => {
+      const collection = await this.getById(id);
+      if (!collection?.parentId) {
+        throw new Error("Collection does not exist.");
+      }
+      await this.database.runAsync(
+        "UPDATE collections SET parent_id = ?, updated_at = ? WHERE parent_id = ?",
+        collection.parentId,
+        Date.now(),
+        id,
+      );
+      await this.database.runAsync("DELETE FROM collections WHERE id = ?", id);
+    });
+  }
 
   async getById(id: string): Promise<Collection | null> {
     const row = await this.database.getFirstAsync<CollectionRow>(
@@ -209,5 +231,22 @@ export class SqliteCollectionRepository implements CollectionRepository {
         id,
       );
     });
+  }
+
+  async update(id: string, name: string, role: CollectionRole): Promise<void> {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new Error("Collection name is required.");
+    }
+    if (id === "main" && role !== "directory") {
+      throw new Error("Main must remain a directory.");
+    }
+    await this.database.runAsync(
+      "UPDATE collections SET name = ?, role = ?, updated_at = ? WHERE id = ?",
+      trimmedName,
+      role,
+      Date.now(),
+      id,
+    );
   }
 }

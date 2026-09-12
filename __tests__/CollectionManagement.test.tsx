@@ -1,4 +1,5 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
 
 import CreateCollectionRoute from "../app/collections/create";
 import OrganizeCollectionRoute from "../app/organize/collection/[id]";
@@ -12,6 +13,10 @@ const mockRefresh = jest.fn();
 const mockCreate = jest.fn();
 const mockReparent = jest.fn();
 const mockSetMembership = jest.fn();
+const mockPlay = jest.fn();
+const mockUpdateCollection = jest.fn();
+const mockDeleteCollection = jest.fn();
+const mockUpdateSoundName = jest.fn();
 let mockParams: Record<string, string> = {};
 
 const mockMain = {
@@ -42,16 +47,19 @@ const mockCollectionGetById = jest.fn(async (id: string) =>
 );
 const mockCollections = {
   create: mockCreate,
+  delete: mockDeleteCollection,
   getById: mockCollectionGetById,
   listAll: jest.fn().mockResolvedValue([mockMain, mockFavorites]),
   listChildren: jest.fn().mockResolvedValue([]),
   listValidParents: jest.fn().mockResolvedValue([mockMain]),
   reparent: mockReparent,
+  update: mockUpdateCollection,
 };
 const mockSounds = {
   getById: jest.fn().mockResolvedValue(mockBloom),
   listMembershipCollectionIds: jest.fn().mockResolvedValue(["main"]),
   setMembership: mockSetMembership,
+  updateName: mockUpdateSoundName,
 };
 const mockRepositories = {
   collections: mockCollections,
@@ -84,6 +92,16 @@ jest.mock("../src/theme/ThemeProvider", () => ({
 jest.mock("../src/repositories/RepositoryProvider", () => ({
   useRepositories: () => mockRepositories,
 }));
+jest.mock("../src/media/AudioMediaService", () => ({
+  audioMediaService: { import: jest.fn(), remove: jest.fn() },
+}));
+jest.mock("../src/playback/PlaybackProvider", () => ({
+  usePlayback: () => ({
+    activeSoundId: null,
+    isBusy: false,
+    play: mockPlay,
+  }),
+}));
 
 describe("collection management routes", () => {
   beforeEach(() => {
@@ -91,6 +109,9 @@ describe("collection management routes", () => {
     mockCreate.mockResolvedValue(mockFavorites);
     mockReparent.mockResolvedValue(undefined);
     mockSetMembership.mockResolvedValue(undefined);
+    mockUpdateCollection.mockResolvedValue(undefined);
+    mockDeleteCollection.mockResolvedValue(undefined);
+    mockUpdateSoundName.mockResolvedValue(undefined);
   });
 
   it("creates a randomizer in the requested parent", async () => {
@@ -140,5 +161,55 @@ describe("collection management routes", () => {
     expect(mockReparent).toHaveBeenCalledWith("favorites", "main");
     expect(mockRefresh).toHaveBeenCalledTimes(1);
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("renames a sound", async () => {
+    mockParams = { id: "bloom" };
+    const screen = await render(<OrganizeSoundRoute />);
+
+    const input = await screen.findByLabelText("Sound name");
+    await fireEvent.changeText(input, "Morning Bloom");
+    await fireEvent.press(screen.getByRole("button", { name: "SAVE NAME" }));
+
+    await waitFor(() =>
+      expect(mockUpdateSoundName).toHaveBeenCalledWith(
+        "bloom",
+        "Morning Bloom",
+      ),
+    );
+  });
+
+  it("converts a directory to a randomizer and deletes it after confirmation", async () => {
+    mockParams = { id: "favorites" };
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
+    const screen = await render(<OrganizeCollectionRoute />);
+
+    await fireEvent.press(
+      await screen.findByRole("radio", { name: "randomizer collection" }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "SAVE DETAILS" }));
+    await waitFor(() =>
+      expect(mockUpdateCollection).toHaveBeenCalledWith(
+        "favorites",
+        "Favorites",
+        "randomizer",
+      ),
+    );
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Delete collection" }),
+    );
+    const destructiveAction = alert.mock.calls[0][2]?.find(
+      (action) => action.style === "destructive",
+    );
+    await act(async () => {
+      destructiveAction?.onPress?.();
+    });
+
+    await waitFor(() =>
+      expect(mockDeleteCollection).toHaveBeenCalledWith("favorites"),
+    );
+    expect(mockReplace).toHaveBeenCalledWith("/");
+    alert.mockRestore();
   });
 });
