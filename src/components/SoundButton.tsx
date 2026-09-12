@@ -7,10 +7,12 @@ import {
     View,
 } from "react-native";
 
+import { isImageIconReference } from "../icons/iconReferences";
 import { usePlayback } from "../playback/PlaybackProvider";
 import type { ButtonSize } from "../settings/PreferencesProvider";
 import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
+import { IconArtwork } from "./IconArtwork";
 
 interface SoundButtonProps {
   onLongPress?: () => void;
@@ -22,6 +24,7 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
   const { activeSoundId, isBusy, play } = usePlayback();
   const { colors } = useTheme();
   const isPlaying = activeSoundId === sound.id;
+  const hasImage = isImageIconReference(sound.iconUri ?? null);
 
   return (
     <View style={[styles.item, { width: size }]}>
@@ -47,7 +50,11 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
           {
             width: size,
             height: size,
-            backgroundColor: isPlaying ? colors.playing : colors.accent,
+            backgroundColor: isPlaying
+              ? colors.playing
+              : hasImage
+                ? colors.background
+                : colors.accent,
             borderColor: colors.border,
             shadowColor: colors.shadow,
           },
@@ -55,11 +62,20 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
           isBusy && !isPlaying && styles.buttonDisabled,
         ]}
       >
-        <MaterialIcons
-          color={colors.text}
-          name={isPlaying ? "volume-up" : "play-arrow"}
-          size={Math.round(size * 0.46)}
-        />
+        {isPlaying ? (
+          <MaterialIcons
+            color={colors.text}
+            name="volume-up"
+            size={Math.round(size * 0.46)}
+          />
+        ) : (
+          <IconArtwork
+            color={colors.text}
+            fallback="play-arrow"
+            iconUri={sound.iconUri ?? null}
+            size={Math.round(size * 0.72)}
+          />
+        )}
       </Pressable>
       <Text
         numberOfLines={2}

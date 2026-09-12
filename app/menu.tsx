@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -188,6 +188,19 @@ export default function MenuScreen() {
             ))}
           </View>
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/about" as Href)}
+          style={({ pressed }) => [
+            styles.aboutButton,
+            { borderColor: colors.border, backgroundColor: colors.surface },
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialIcons color={colors.text} name="info-outline" size={24} />
+          <Text style={[styles.aboutLabel, { color: colors.text }]}>ABOUT</Text>
+        </Pressable>
       </ScrollView>
       <StatusBar style={statusBarStyle} />
     </SafeAreaView>
@@ -286,6 +299,22 @@ const styles = StyleSheet.create({
   themeLabel: {
     fontFamily: "Courier",
     fontSize: 12,
+    fontWeight: "700",
+  },
+  aboutButton: {
+    width: "100%",
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  aboutLabel: {
+    fontFamily: "Courier",
+    fontSize: 15,
     fontWeight: "700",
   },
   pressed: {

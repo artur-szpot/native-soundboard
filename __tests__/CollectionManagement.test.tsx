@@ -16,15 +16,19 @@ const mockReparent = jest.fn();
 const mockSetMembership = jest.fn();
 const mockPlay = jest.fn();
 const mockUpdateCollection = jest.fn();
+const mockUpdateHideBorder = jest.fn();
 const mockDeleteCollection = jest.fn();
 const mockUpdateSoundName = jest.fn();
 let mockParams: Record<string, string> = {};
+let mockRevision = 0;
+let mockFavoritesIconUri: string | null = null;
 
 const mockMain = {
   id: "main",
   name: "Main",
   role: "directory" as const,
   iconUri: null,
+  hideBorder: false,
   parentId: null,
   createdAt: 1,
   updatedAt: 1,
@@ -56,7 +60,9 @@ const mockBloom = {
   updatedAt: 1,
 };
 const mockCollectionGetById = jest.fn(async (id: string) =>
-  id === "favorites" ? mockFavorites : mockMain,
+  id === "favorites"
+    ? { ...mockFavorites, iconUri: mockFavoritesIconUri }
+    : mockMain,
 );
 const mockCollections = {
   create: mockCreate,
@@ -69,6 +75,7 @@ const mockCollections = {
     .mockResolvedValue([mockClips, mockArchive, mockMain]),
   reparent: mockReparent,
   update: mockUpdateCollection,
+  updateHideBorder: mockUpdateHideBorder,
 };
 const mockSounds = {
   getById: jest.fn().mockResolvedValue(mockBloom),
@@ -98,6 +105,7 @@ jest.mock("../src/theme/ThemeProvider", () => ({
       accent: "#f00",
       background: "#fff",
       border: "#000",
+      collection: "#fc0",
       mutedText: "#555",
       success: "#0a0",
       surface: "#fff",
@@ -106,7 +114,7 @@ jest.mock("../src/theme/ThemeProvider", () => ({
   }),
 }));
 jest.mock("../src/repositories/RepositoryProvider", () => ({
-  useRepositories: () => mockRepositories,
+  useRepositories: () => ({ ...mockRepositories, revision: mockRevision }),
 }));
 jest.mock("../src/media/AudioMediaService", () => ({
   audioMediaService: { import: jest.fn(), remove: jest.fn() },
@@ -127,7 +135,10 @@ describe("collection management routes", () => {
     mockSetMembership.mockResolvedValue(undefined);
     mockUpdateCollection.mockResolvedValue(undefined);
     mockDeleteCollection.mockResolvedValue(undefined);
+    mockUpdateHideBorder.mockResolvedValue(undefined);
     mockUpdateSoundName.mockResolvedValue(undefined);
+    mockFavoritesIconUri = null;
+    mockRevision = 0;
   });
 
   it("creates a randomizer in the requested parent", async () => {
@@ -276,6 +287,30 @@ describe("collection management routes", () => {
         "directory",
       ),
     );
+  });
+
+  it("refreshes a selected image and can hide its border", async () => {
+    mockParams = { id: "favorites" };
+    const screen = await render(<OrganizeCollectionRoute />);
+
+    expect(
+      screen.queryByRole("checkbox", { name: "Hide collection border" }),
+    ).not.toBeOnTheScreen();
+
+    mockFavoritesIconUri = "media/images/favorites.png";
+    mockRevision += 1;
+    await screen.rerender(<OrganizeCollectionRoute />);
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Hide collection border",
+    });
+    expect(checkbox).not.toBeChecked();
+    await fireEvent.press(checkbox);
+
+    await waitFor(() =>
+      expect(mockUpdateHideBorder).toHaveBeenCalledWith("favorites", true),
+    );
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("deletes a collection after confirmation", async () => {

@@ -29,6 +29,7 @@ export interface SoundRepository {
     collectionId: string,
     included: boolean,
   ): Promise<void>;
+  updateIcon(id: string, iconUri: string | null): Promise<void>;
   updateName(id: string, name: string): Promise<void>;
 }
 
@@ -46,6 +47,8 @@ export interface CollectionRepository {
     parentId: string,
   ): Promise<Collection>;
   reparent(id: string, parentId: string): Promise<void>;
+  updateHideBorder(id: string, hideBorder: boolean): Promise<void>;
+  updateIcon(id: string, iconUri: string | null): Promise<void>;
   update(id: string, name: string, role: CollectionRole): Promise<void>;
 }
 

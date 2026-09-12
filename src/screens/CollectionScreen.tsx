@@ -87,7 +87,12 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
       const playableDirectSounds = directSounds
         .map((sound) => ({
           sound,
-          playable: resolvePlayableSound(sound.id, sound.name, sound.mediaPath),
+          playable: resolvePlayableSound(
+            sound.id,
+            sound.iconUri,
+            sound.name,
+            sound.mediaPath,
+          ),
         }))
         .filter(
           (entry): entry is { sound: Sound; playable: PlayableSound } =>
@@ -102,7 +107,12 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               child.id,
               candidates
                 .map((sound) =>
-                  resolvePlayableSound(sound.id, sound.name, sound.mediaPath),
+                  resolvePlayableSound(
+                    sound.id,
+                    sound.iconUri,
+                    sound.name,
+                    sound.mediaPath,
+                  ),
                 )
                 .filter((sound): sound is PlayableSound => sound !== null),
             ] as const;

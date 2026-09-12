@@ -7,7 +7,7 @@ import {
     useState,
 } from "react";
 
-import { removeOrphanedAudio } from "../media/mediaPaths";
+import { removeOrphanedAudio, removeOrphanedImages } from "../media/mediaPaths";
 import { SqliteCollectionRepository } from "./SqliteCollectionRepository";
 import { SqliteSoundRepository } from "./SqliteSoundRepository";
 
@@ -29,15 +29,21 @@ export function RepositoryProvider({ children }: PropsWithChildren) {
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    void sounds
-      .listAll()
-      .then((storedSounds) =>
+    void Promise.all([sounds.listAll(), collections.listAll()])
+      .then(([storedSounds, storedCollections]) => {
         removeOrphanedAudio(
           new Set(storedSounds.map((sound) => sound.mediaPath)),
-        ),
-      )
+        );
+        removeOrphanedImages(
+          new Set(
+            [...storedSounds, ...storedCollections]
+              .map((item) => item.iconUri)
+              .filter((iconUri): iconUri is string => iconUri !== null),
+          ),
+        );
+      })
       .catch(() => undefined);
-  }, [sounds]);
+  }, [collections, sounds]);
 
   return (
     <RepositoryContext

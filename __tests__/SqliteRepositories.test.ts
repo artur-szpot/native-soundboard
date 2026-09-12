@@ -153,4 +153,42 @@ describe("SQLite collection and sound repositories", () => {
     );
     expect(database.runAsync).not.toHaveBeenCalled();
   });
+
+  it("updates sound and collection icon references", async () => {
+    const database = { runAsync: jest.fn().mockResolvedValue(undefined) };
+    const sounds = new SqliteSoundRepository(database as never);
+    const collections = new SqliteCollectionRepository(database as never);
+
+    await sounds.updateIcon("bloom", "material:music-note");
+    await collections.updateIcon("favorites", "media/images/icon.png");
+
+    expect(database.runAsync).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("UPDATE sounds SET icon_uri"),
+      "material:music-note",
+      expect.any(Number),
+      "bloom",
+    );
+    expect(database.runAsync).toHaveBeenNthCalledWith(
+      2,
+      expect.not.stringContaining("hide_border"),
+      "media/images/icon.png",
+      expect.any(Number),
+      "favorites",
+    );
+  });
+
+  it("only hides borders for collections with imported images", async () => {
+    const database = { runAsync: jest.fn().mockResolvedValue(undefined) };
+    const repository = new SqliteCollectionRepository(database as never);
+
+    await repository.updateHideBorder("favorites", true);
+
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining("icon_uri NOT LIKE 'material:%'"),
+      1,
+      expect.any(Number),
+      "favorites",
+    );
+  });
 });

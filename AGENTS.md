@@ -23,7 +23,6 @@ choices before building code that depends on them.
 - `index.ts` registers the root React Native component.
 - `App.tsx` owns the current screen, `expo-audio` player, playback status, and
   square-button styles.
-- `assets/chime.wav` is the bundled MVP sound.
 - `app.json` contains Expo configuration. Audio recording permissions are
   intentionally disabled because the app only plays audio.
 - There is no navigation, persistent data store, import service, automated test

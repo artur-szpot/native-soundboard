@@ -1,4 +1,3 @@
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
     type AccessibilityActionEvent,
     Pressable,
@@ -8,10 +7,12 @@ import {
 } from "react-native";
 
 import type { Collection } from "../domain/models";
+import { isImageIconReference } from "../icons/iconReferences";
 import { usePlayback } from "../playback/PlaybackProvider";
 import type { ButtonSize } from "../settings/PreferencesProvider";
 import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
+import { IconArtwork } from "./IconArtwork";
 
 interface CollectionButtonProps {
   collection: Collection;
@@ -31,6 +32,7 @@ export function CollectionButton({
   const { isBusy, playRandomizer } = usePlayback();
   const { colors } = useTheme();
   const isRandomizer = collection.role === "randomizer";
+  const hasImage = isImageIconReference(collection.iconUri);
   const isDisabled = isRandomizer && (isBusy || playableSounds.length === 0);
   const accessibilityLabel = isRandomizer
     ? `Play randomizer ${collection.name}`
@@ -79,18 +81,22 @@ export function CollectionButton({
           {
             width: size,
             height: size,
-            backgroundColor: colors.collection,
-            borderColor: colors.border,
+            backgroundColor: hasImage ? colors.background : colors.collection,
+            borderColor:
+              hasImage && collection.hideBorder
+                ? colors.background
+                : colors.border,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
           isDisabled && styles.buttonDisabled,
         ]}
       >
-        <MaterialIcons
+        <IconArtwork
           color={colors.text}
-          name={isRandomizer ? "shuffle" : "folder"}
-          size={Math.round(size * 0.46)}
+          fallback={isRandomizer ? "shuffle" : "folder"}
+          iconUri={collection.iconUri}
+          size={Math.round(size * 0.72)}
           testID={isRandomizer ? `randomizer-icon-${collection.id}` : undefined}
         />
       </Pressable>
