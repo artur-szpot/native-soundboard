@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 export const DATABASE_NAME = "native-soundboard.db";
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 type MigrationDatabase = Pick<
   SQLiteDatabase,
@@ -76,6 +76,46 @@ const migrationTwo = `
   PRAGMA user_version = 2;
 `;
 
+const migrationThree = `
+  INSERT OR IGNORE INTO collections (
+    id, name, role, icon_uri, parent_id, created_at, updated_at
+  ) VALUES
+    ('favorites', 'Favorites', 'directory', NULL, 'main',
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000),
+    ('surprise-me', 'Surprise Me', 'randomizer', NULL, 'main',
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+
+  INSERT OR IGNORE INTO sounds (
+    id, name, media_path, icon_uri, created_at, updated_at
+  ) VALUES
+    ('bloom', 'Bloom', 'bundled:bloom', NULL,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000),
+    ('click', 'Click', 'bundled:click', NULL,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000),
+    ('rise', 'Rise', 'bundled:rise', NULL,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000),
+    ('low', 'Low', 'bundled:low', NULL,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+
+  INSERT OR IGNORE INTO sound_collection_memberships (sound_id, collection_id)
+  VALUES
+    ('bloom', 'main'), ('click', 'main'), ('rise', 'main'), ('low', 'main'),
+    ('bloom', 'favorites'), ('rise', 'favorites'),
+    ('bloom', 'surprise-me'), ('click', 'surprise-me'),
+    ('rise', 'surprise-me'), ('low', 'surprise-me');
+
+  INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+  VALUES (3, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+
+  PRAGMA user_version = 3;
+`;
+
 export async function migrateDatabase(
   database: MigrationDatabase,
 ): Promise<void> {
@@ -103,6 +143,12 @@ export async function migrateDatabase(
   if (currentVersion < 2) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(migrationTwo);
+    });
+  }
+
+  if (currentVersion < 3) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(migrationThree);
     });
   }
 }

@@ -5,6 +5,7 @@ import MenuScreen from "../app/menu";
 import { ThemeProvider } from "../src/theme/ThemeProvider";
 
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 let mockButtonSize: 64 | 80 | 96 | 112 | 132 | 184 = 132;
 const mockPreferences = {
   decreaseButtonSize: jest.fn(),
@@ -15,7 +16,8 @@ const mockPreferences = {
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack }),
+  useLocalSearchParams: () => ({ collectionId: "main" }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
 }));
 jest.mock("../src/settings/PreferencesProvider", () => ({
   BUTTON_SIZES: [64, 80, 96, 112, 132, 184],
@@ -83,5 +85,18 @@ describe("MenuScreen", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Close menu" }));
 
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a collection beneath the active directory", async () => {
+    const screen = await renderScreen();
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "CREATE COLLECTION" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/collections/create",
+      params: { parentId: "main" },
+    });
   });
 });

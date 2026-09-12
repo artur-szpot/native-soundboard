@@ -20,13 +20,20 @@ describe("migrateDatabase", () => {
       1,
       "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;",
     );
-    expect(database.withTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(3);
     expect(execAsync.mock.calls[1][0]).toContain(
       "CREATE TABLE IF NOT EXISTS sounds",
     );
     expect(execAsync.mock.calls[1][0]).toContain("'main', 'Main', 'directory'");
     expect(execAsync.mock.calls[2][0]).toContain("'buttonSize', '132'");
-    expect(execAsync.mock.calls[2][0]).toContain(
+    expect(execAsync.mock.calls[2][0]).toContain("'buttonSize', '132'");
+    expect(execAsync.mock.calls[3][0]).toContain(
+      "'favorites', 'Favorites', 'directory'",
+    );
+    expect(execAsync.mock.calls[3][0]).toContain(
+      "'surprise-me', 'Surprise Me', 'randomizer'",
+    );
+    expect(execAsync.mock.calls[3][0]).toContain(
       `PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`,
     );
   });

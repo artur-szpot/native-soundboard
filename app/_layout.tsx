@@ -13,6 +13,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { DATABASE_NAME, migrateDatabase } from "../src/database/migrate";
 import { PlaybackProvider } from "../src/playback/PlaybackProvider";
+import { RepositoryProvider } from "../src/repositories/RepositoryProvider";
 import { PreferencesProvider } from "../src/settings/PreferencesProvider";
 import { ThemeProvider } from "../src/theme/ThemeProvider";
 
@@ -63,13 +64,15 @@ export default function RootLayout() {
           useSuspense
         >
           <PreferencesProvider fallback={<LoadingScreen />}>
-            <ThemeProvider>
-              <Suspense fallback={<LoadingScreen />}>
-                <PlaybackProvider>
-                  <Stack screenOptions={{ headerShown: false }} />
-                </PlaybackProvider>
-              </Suspense>
-            </ThemeProvider>
+            <RepositoryProvider>
+              <ThemeProvider>
+                <Suspense fallback={<LoadingScreen />}>
+                  <PlaybackProvider>
+                    <Stack screenOptions={{ headerShown: false }} />
+                  </PlaybackProvider>
+                </Suspense>
+              </ThemeProvider>
+            </RepositoryProvider>
           </PreferencesProvider>
         </SQLiteProvider>
       </Suspense>
