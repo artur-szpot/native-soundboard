@@ -4,6 +4,7 @@ export interface Sound {
   id: string;
   name: string;
   mediaPath: string;
+  originalFilename?: string | null;
   iconUri: string | null;
   createdAt: number;
   updatedAt: number;

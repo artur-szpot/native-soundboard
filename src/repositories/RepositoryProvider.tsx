@@ -3,9 +3,11 @@ import {
     type PropsWithChildren,
     createContext,
     useContext,
+    useEffect,
     useState,
 } from "react";
 
+import { removeOrphanedAudio } from "../media/mediaPaths";
 import { SqliteCollectionRepository } from "./SqliteCollectionRepository";
 import { SqliteSoundRepository } from "./SqliteSoundRepository";
 
@@ -25,6 +27,17 @@ export function RepositoryProvider({ children }: PropsWithChildren) {
   );
   const [sounds] = useState(() => new SqliteSoundRepository(database));
   const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    void sounds
+      .listAll()
+      .then((storedSounds) =>
+        removeOrphanedAudio(
+          new Set(storedSounds.map((sound) => sound.mediaPath)),
+        ),
+      )
+      .catch(() => undefined);
+  }, [sounds]);
 
   return (
     <RepositoryContext

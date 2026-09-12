@@ -10,16 +10,16 @@ safe-area and theme providers, a startup error boundary, versioned SQLite
 migrations, domain and repository contracts, and automated tests. Persisted
 directory and randomizer collections now support nested navigation,
 breadcrumbs, sound membership organization, cycle-safe reparenting, and
-descendant-aware random playback with recent-selection history. Later editing,
-media import, images, and release work below remains planned and must not be
-treated as implemented behavior.
+descendant-aware random playback with recent-selection history. Local audio
+import and sound and collection editing are also implemented.
+Images, metadata export/import, and release work below remain planned and must
+not be treated as implemented behavior.
 
 ## Product Purpose
 
 Native Soundboard is a free, open source mobile soundboard. Tapping a square
-button plays a sound. The app will include a small set of original or
-appropriately licensed starter sounds and will let users import their own
-audio from the system file picker.
+button plays a sound. The app includes a small set of original starter sounds
+and lets users import their own audio from the system file picker.
 
 Downloading a sound from a pasted URL is a low-priority feature. It must not
 block local import, playback, or collection management.
@@ -174,7 +174,13 @@ The collection details screen contains:
 - Delete command with clear behavior for contained sounds and collections.
 
 Changing a populated directory to a randomizer requires defined behavior for
-child collections and must not silently make content inaccessible.
+child collections and must not silently make content inaccessible. The current
+behavior keeps child collections attached; their sounds contribute to the
+randomizer, and the children remain reachable from collection details.
+
+Deleting a collection moves its direct child collections to its parent. Its
+sound memberships are removed, but the sounds remain in main and in any other
+collections. Main cannot be deleted or converted to a randomizer.
 
 ## Navigation
 
@@ -197,21 +203,14 @@ app must not promise direct unrestricted filesystem access. Import should use
 the narrowest system permissions available and should not request microphone
 or broad media-library access merely for audio playback.
 
-Before import work begins, define:
-
-- Supported audio and image formats by platform.
-- Generous maximum file size, audio duration, and image dimensions based on
-  device memory, decoder behavior, and available storage.
-- Filename normalization and collision handling.
-- Duplicate detection and whether duplicates share or copy media.
-- Validation that a selected file exists, is nonempty, can be decoded by the
-  target platform, and fits in available storage. Picker MIME types and file
-  extensions are hints rather than proof of valid content.
-- Temporary-copy, atomic-finalization, and metadata-write behavior.
-- Cleanup for failed imports and orphaned files.
-- Recovery when a file is missing or corrupt.
-- Exact import limits and user-facing errors, finalized with the import
-  milestone rather than guessed in advance.
+Local audio import accepts MP3, M4A, AAC, WAV, and OGG files up to 10 MB and one
+minute, subject to decoder support on the target device. Each import creates an
+independently owned copy with a generated collision-resistant managed filename
+and retains the original filename in SQLite. Imports validate file existence,
+nonzero size, available storage, decoding, and duration before finalization.
+Failed writes are cleaned up, orphaned managed audio is removed at startup, and
+missing references can be repaired by replacing the file from sound details.
+Image formats and limits remain deferred to the image milestone.
 
 Use `expo-sqlite` for persistent metadata, schema versions, and migrations.
 Enable foreign keys and WAL mode. Use transactions to keep memberships,
@@ -304,7 +303,7 @@ repository.
   and empty/error states.
 - Descendant randomization with sound-ID deduplication and recent-play history.
 
-### 4. Editing and Local Import
+### 4. Editing and Local Import (Complete)
 
 - Sound and collection detail screens.
 - System-picker import into app-managed storage.
@@ -356,6 +355,7 @@ Features unavailable in Expo Go must be called out before implementation.
 
 ## Open Decisions
 
-- Exact supported media formats, size/duration/dimension limits, filename
-  matching, collision handling, and partial-import recovery.
+- Exact supported image formats, size/dimension limits, and processing policy.
+- Metadata-manifest filename matching, collision handling, and partial-import
+  recovery.
 - Support/donation URL to configure before release.

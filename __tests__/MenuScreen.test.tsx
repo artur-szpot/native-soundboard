@@ -99,4 +99,12 @@ describe("MenuScreen", () => {
       params: { parentId: "main" },
     });
   });
+
+  it("opens sound import for the active directory", async () => {
+    const screen = await renderScreen();
+
+    await fireEvent.press(screen.getByRole("button", { name: "IMPORT SOUND" }));
+
+    expect(mockPush).toHaveBeenCalledWith("/sounds/import?collectionId=main");
+  });
 });

@@ -56,6 +56,25 @@ export default function MenuScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={() =>
+            router.push(
+              `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
+            )
+          }
+          style={({ pressed }) => [
+            styles.commandButton,
+            { borderColor: colors.border, backgroundColor: colors.accent },
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialIcons color={colors.text} name="audio-file" size={24} />
+          <Text style={[styles.commandLabel, { color: colors.text }]}>
+            IMPORT SOUND
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
             router.push({
               pathname: "/collections/create",
               params: { parentId: collectionId },
@@ -222,7 +241,7 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: "center",
-    gap: 40,
+    gap: 20,
     paddingHorizontal: 20,
     paddingVertical: 24,
   },
@@ -230,6 +249,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     gap: 20,
+    marginTop: 20,
   },
   commandButton: {
     minHeight: 52,

@@ -6,17 +6,31 @@ import type {
 } from "../domain/models";
 
 export interface SoundRepository {
+  create(
+    name: string,
+    mediaPath: string,
+    originalFilename: string,
+  ): Promise<Sound>;
+  delete(id: string): Promise<void>;
   getById(id: string): Promise<Sound | null>;
   listByCollection(collectionId: string): Promise<readonly Sound[]>;
   listMembershipCollectionIds(soundId: string): Promise<readonly string[]>;
+  replaceMedia(
+    id: string,
+    mediaPath: string,
+    originalFilename: string,
+  ): Promise<void>;
+  listAll(): Promise<readonly Sound[]>;
   setMembership(
     soundId: string,
     collectionId: string,
     included: boolean,
   ): Promise<void>;
+  updateName(id: string, name: string): Promise<void>;
 }
 
 export interface CollectionRepository {
+  delete(id: string): Promise<void>;
   getById(id: string): Promise<Collection | null>;
   listChildren(parentId: string): Promise<readonly Collection[]>;
   listAncestors(id: string): Promise<readonly Collection[]>;
@@ -29,6 +43,7 @@ export interface CollectionRepository {
     parentId: string,
   ): Promise<Collection>;
   reparent(id: string, parentId: string): Promise<void>;
+  update(id: string, name: string, role: CollectionRole): Promise<void>;
 }
 
 export interface SettingsRepository {

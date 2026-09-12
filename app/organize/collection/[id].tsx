@@ -3,15 +3,18 @@ import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { Collection } from "../../../src/domain/models";
+import type { Collection, CollectionRole } from "../../../src/domain/models";
+import { collectionHref } from "../../../src/navigation/routes";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 
@@ -21,9 +24,12 @@ export default function OrganizeCollectionRoute() {
   const { collections, refresh } = useRepositories();
   const { colors } = useTheme();
   const [collection, setCollection] = useState<Collection | null>(null);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<CollectionRole>("directory");
   const [children, setChildren] = useState<readonly Collection[]>([]);
   const [parents, setParents] = useState<readonly Collection[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -32,10 +38,10 @@ export default function OrganizeCollectionRoute() {
       collections.listChildren(id),
     ])
       .then(([selectedCollection, validParents, childCollections]) => {
-        if (!selectedCollection) {
-          throw new Error("Collection not found.");
-        }
+        if (!selectedCollection) throw new Error("Collection not found.");
         setCollection(selectedCollection);
+        setName(selectedCollection.name);
+        setRole(selectedCollection.role);
         setParents(validParents);
         setChildren(childCollections);
       })
@@ -50,6 +56,9 @@ export default function OrganizeCollectionRoute() {
     setError(null);
     try {
       await collections.reparent(id, parentId);
+      setCollection((current) =>
+        current ? { ...current, parentId } : current,
+      );
       refresh();
       router.back();
     } catch (moveError: unknown) {
@@ -57,6 +66,57 @@ export default function OrganizeCollectionRoute() {
         moveError instanceof Error ? moveError.message : String(moveError),
       );
     }
+  };
+
+  const saveDetails = async () => {
+    if (!collection) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await collections.update(collection.id, name, role);
+      setCollection({ ...collection, name: name.trim(), role });
+      refresh();
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteCollection = () => {
+    if (!collection?.parentId) return;
+    const parentId = collection.parentId;
+    Alert.alert(
+      "Delete collection?",
+      `Delete ${collection.name}? Child collections will move to its parent. Sounds will remain in Main and their other collections.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setIsSaving(true);
+            void collections
+              .delete(collection.id)
+              .then(() => {
+                refresh();
+                router.dismissAll();
+                router.replace(collectionHref(parentId));
+              })
+              .catch((deleteError: unknown) =>
+                setError(
+                  deleteError instanceof Error
+                    ? deleteError.message
+                    : String(deleteError),
+                ),
+              )
+              .finally(() => setIsSaving(false));
+          },
+        },
+      ],
+    );
   };
 
   if (!collection && !error) {
@@ -72,6 +132,9 @@ export default function OrganizeCollectionRoute() {
     );
   }
 
+  const detailsUnchanged =
+    !!collection && name.trim() === collection.name && role === collection.role;
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -81,7 +144,7 @@ export default function OrganizeCollectionRoute() {
           accessibilityRole="header"
           style={[styles.title, { color: colors.text }]}
         >
-          ORGANIZE {collection?.name.toUpperCase()}
+          COLLECTION DETAILS
         </Text>
         <Pressable
           accessibilityLabel="Close"
@@ -104,7 +167,101 @@ export default function OrganizeCollectionRoute() {
         </Text>
       ) : null}
       <ScrollView contentContainerStyle={styles.list}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        {collection ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              NAME
+            </Text>
+            <TextInput
+              accessibilityLabel="Collection name"
+              editable={!isSaving}
+              maxLength={80}
+              onChangeText={setName}
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+              value={name}
+            />
+            <Text
+              style={[
+                styles.sectionTitle,
+                styles.sectionSpacing,
+                { color: colors.text },
+              ]}
+            >
+              TYPE
+            </Text>
+            <View accessibilityRole="radiogroup" style={styles.roleControl}>
+              {(["directory", "randomizer"] as const).map((option) => {
+                const isMainRandomizer =
+                  collection.id === "main" && option === "randomizer";
+                return (
+                  <Pressable
+                    accessibilityLabel={`${option} collection`}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: role === option,
+                      disabled: isMainRandomizer,
+                    }}
+                    disabled={isMainRandomizer || isSaving}
+                    key={option}
+                    onPress={() => setRole(option)}
+                    style={[
+                      styles.roleOption,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.surface,
+                      },
+                      role === option && { backgroundColor: colors.playing },
+                      isMainRandomizer && styles.disabled,
+                    ]}
+                  >
+                    <MaterialIcons
+                      color={colors.text}
+                      name={option === "directory" ? "folder" : "play-arrow"}
+                      size={24}
+                    />
+                    <Text style={[styles.roleLabel, { color: colors.text }]}>
+                      {option.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: isSaving || !name.trim() || detailsUnchanged,
+              }}
+              disabled={isSaving || !name.trim() || detailsUnchanged}
+              onPress={saveDetails}
+              style={[
+                styles.command,
+                { borderColor: colors.border, backgroundColor: colors.accent },
+                (isSaving || !name.trim() || detailsUnchanged) &&
+                  styles.disabled,
+              ]}
+            >
+              <MaterialIcons color={colors.text} name="save" size={22} />
+              <Text style={[styles.commandLabel, { color: colors.text }]}>
+                SAVE DETAILS
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        <Text
+          style={[
+            styles.sectionTitle,
+            styles.sectionSpacing,
+            { color: colors.text },
+          ]}
+        >
           PARENT
         </Text>
         <Text style={[styles.instructions, { color: colors.mutedText }]}>
@@ -134,12 +291,13 @@ export default function OrganizeCollectionRoute() {
             ) : null}
           </Pressable>
         ))}
+
         {children.length > 0 ? (
           <>
             <Text
               style={[
                 styles.sectionTitle,
-                styles.childHeading,
+                styles.sectionSpacing,
                 { color: colors.text },
               ]}
             >
@@ -178,6 +336,25 @@ export default function OrganizeCollectionRoute() {
             ))}
           </>
         ) : null}
+
+        {collection?.parentId ? (
+          <Pressable
+            accessibilityLabel="Delete collection"
+            accessibilityRole="button"
+            disabled={isSaving}
+            onPress={deleteCollection}
+            style={[
+              styles.command,
+              styles.deleteButton,
+              { borderColor: colors.border },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="delete" size={22} />
+            <Text style={[styles.commandLabel, { color: colors.text }]}>
+              DELETE COLLECTION
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -209,10 +386,41 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   error: { padding: 20, fontSize: 15, textAlign: "center" },
-  list: { gap: 10, padding: 20 },
+  list: { gap: 10, padding: 20, paddingBottom: 40 },
   instructions: { fontSize: 15, marginBottom: 8 },
   sectionTitle: { fontFamily: "Courier", fontSize: 15, fontWeight: "700" },
-  childHeading: { marginTop: 18 },
+  sectionSpacing: { marginTop: 8 },
+  input: {
+    minHeight: 52,
+    paddingHorizontal: 14,
+    borderRadius: 4,
+    borderWidth: 2,
+    fontSize: 17,
+  },
+  roleControl: { flexDirection: "row" },
+  roleOption: {
+    minWidth: 132,
+    minHeight: 60,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    padding: 8,
+    borderWidth: 2,
+  },
+  roleLabel: { fontFamily: "Courier", fontSize: 13, fontWeight: "700" },
+  command: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  commandLabel: { fontFamily: "Courier", fontSize: 14, fontWeight: "700" },
+  deleteButton: { marginTop: 24, backgroundColor: "#E74E36" },
   option: {
     minHeight: 54,
     flexDirection: "row",
@@ -223,4 +431,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   optionLabel: { flex: 1, fontSize: 16, fontWeight: "700" },
+  disabled: { opacity: 0.42 },
 });

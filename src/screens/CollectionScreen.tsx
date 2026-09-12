@@ -23,7 +23,7 @@ import { useRepositories } from "../repositories/RepositoryProvider";
 import { usePreferences } from "../settings/PreferencesProvider";
 import {
     type PlayableSound,
-    resolveBundledSound,
+    resolvePlayableSound,
 } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
 
@@ -76,7 +76,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
       const playableDirectSounds = directSounds
         .map((sound) => ({
           sound,
-          playable: resolveBundledSound(sound.id, sound.name, sound.mediaPath),
+          playable: resolvePlayableSound(sound.id, sound.name, sound.mediaPath),
         }))
         .filter(
           (entry): entry is { sound: Sound; playable: PlayableSound } =>
@@ -91,7 +91,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               child.id,
               candidates
                 .map((sound) =>
-                  resolveBundledSound(sound.id, sound.name, sound.mediaPath),
+                  resolvePlayableSound(sound.id, sound.name, sound.mediaPath),
                 )
                 .filter((sound): sound is PlayableSound => sound !== null),
             ] as const;

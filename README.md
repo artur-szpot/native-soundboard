@@ -12,6 +12,10 @@ The application currently provides:
 - Nested directory navigation with breadcrumbs and native stack back behavior.
 - Collection creation, sound membership organization, and cycle-safe collection
   reparenting through accessible organizer screens.
+- Sound and collection detail screens with rename, role, replacement, and
+  confirmed deletion workflows.
+- Local MP3, M4A, AAC, WAV, and OGG import through the system document picker,
+  with 10 MB and one-minute limits and app-managed storage.
 - Descendant-aware randomizers that deduplicate sounds, avoid recent repeats,
   and share the global non-overlapping playback coordinator.
 - Fixed-square controls with Material play icons and accessible labels.
@@ -30,8 +34,8 @@ The application currently provides:
 - Jest and React Native Testing Library coverage for migrations, repositories,
   randomizer selection, navigation, and collection-management interactions.
 
-Sound and collection renaming, role changes, deletion, custom media imports,
-and full detail screens remain roadmap items and are not implemented yet.
+Image selection, metadata export/import, and release-readiness work remain
+roadmap items and are not implemented yet.
 
 ## Product Direction
 
@@ -117,6 +121,7 @@ app.json                      Expo application configuration
 src/database/                 SQLite initialization and versioned migrations
 src/domain/                   TypeScript domain models
 src/repositories/             Persistence boundary contracts
+src/media/                    Managed audio validation, storage, and cleanup
 src/playback/                 Shared single-sound playback coordination
 src/settings/                 Persisted button-size and theme preferences
 src/sounds/                   Bundled starter sound catalog
@@ -124,14 +129,15 @@ src/components/               Reusable square sound and collection controls
 src/randomizer/               Session-scoped recent-selection history
 src/screens/                  Shared collection screen
 src/theme/                    System-aware theme tokens and provider
+plugins/                      Expo native configuration plugins
 __tests__/                    Migration and component tests
 plan/p0-general-plans.md      Product roadmap and open decisions
 AGENTS.md                     Repository guidance for coding agents
 ```
 
 The soundboard and nested directory routes read collection content through the
-SQLite repositories. Organizer routes expose the milestone 3 membership and
-parent operations; broader editing remains deferred to later milestones.
+SQLite repositories. Detail routes edit sound memberships and collection
+parents, names, roles, media, and deletion behavior.
 
 The four starter WAV files were synthesized specifically for this project and
 contain no external samples. Their generation details and provenance are
@@ -139,8 +145,11 @@ recorded in [assets/sounds/README.md](assets/sounds/README.md).
 
 ## User Media
 
-Future import features will copy selected media into app-managed local storage.
-The app will not transmit that media itself unless the user exports it, although
+Local audio imports are copied into app-managed document storage. Each import
+gets an independent managed copy and retains its original filename in metadata.
+The app accepts MP3, M4A, AAC, WAV, and OGG files up to 10 MB and one minute,
+subject to decoding support on the device. The app does not transmit that media
+itself unless the user exports it, although
 the operating system may include it in backup or device transfer as described
 above. Users are responsible for ensuring they have the right to import, store,
 and play their sound and image files. Bundled starter media must be original,

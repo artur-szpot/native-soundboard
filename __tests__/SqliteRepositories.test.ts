@@ -62,4 +62,74 @@ describe("SQLite collection and sound repositories", () => {
     );
     expect(database.runAsync).not.toHaveBeenCalled();
   });
+
+  it("creates an imported sound with an immutable Main membership", async () => {
+    const database = {
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (task: () => Promise<void>) =>
+        task(),
+      ),
+    };
+    const repository = new SqliteSoundRepository(database as never);
+
+    const sound = await repository.create(
+      "  Air Horn  ",
+      "media/sound.mp3",
+      "air-horn.mp3",
+    );
+
+    expect(sound.name).toBe("Air Horn");
+    expect(database.runAsync).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("VALUES (?, 'main')"),
+      sound.id,
+    );
+  });
+
+  it("reparents children before deleting a collection", async () => {
+    const database = {
+      getFirstAsync: jest.fn().mockResolvedValue({
+        id: "source",
+        name: "Source",
+        role: "directory",
+        icon_uri: null,
+        parent_id: "main",
+        created_at: 1,
+        updated_at: 1,
+      }),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (task: () => Promise<void>) =>
+        task(),
+      ),
+    };
+    const repository = new SqliteCollectionRepository(database as never);
+
+    await repository.delete("source");
+
+    expect(database.runAsync).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("UPDATE collections SET parent_id"),
+      "main",
+      expect.any(Number),
+      "source",
+    );
+    expect(database.runAsync).toHaveBeenNthCalledWith(
+      2,
+      "DELETE FROM collections WHERE id = ?",
+      "source",
+    );
+  });
+
+  it("does not allow Main to become a randomizer or be deleted", async () => {
+    const database = { runAsync: jest.fn() };
+    const repository = new SqliteCollectionRepository(database as never);
+
+    await expect(
+      repository.update("main", "Main", "randomizer"),
+    ).rejects.toThrow("remain a directory");
+    await expect(repository.delete("main")).rejects.toThrow(
+      "cannot be deleted",
+    );
+    expect(database.runAsync).not.toHaveBeenCalled();
+  });
 });
