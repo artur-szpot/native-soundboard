@@ -9,6 +9,7 @@ interface CollectionRow {
   name: string;
   role: CollectionRole;
   icon_uri: string | null;
+  hide_border: number;
   parent_id: string | null;
   created_at: number;
   updated_at: number;
@@ -30,6 +31,7 @@ function mapCollection(row: CollectionRow): Collection {
     name: row.name,
     role: row.role,
     iconUri: row.icon_uri,
+    hideBorder: row.hide_border === 1,
     parentId: row.parent_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -181,6 +183,7 @@ export class SqliteCollectionRepository implements CollectionRepository {
       name: trimmedName,
       role,
       iconUri: null,
+      hideBorder: false,
       parentId,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -245,6 +248,28 @@ export class SqliteCollectionRepository implements CollectionRepository {
       "UPDATE collections SET name = ?, role = ?, updated_at = ? WHERE id = ?",
       trimmedName,
       role,
+      Date.now(),
+      id,
+    );
+  }
+
+  async updateIcon(id: string, iconUri: string | null): Promise<void> {
+    await this.database.runAsync(
+      "UPDATE collections SET icon_uri = ?, updated_at = ? WHERE id = ?",
+      iconUri,
+      Date.now(),
+      id,
+    );
+  }
+
+  async updateHideBorder(id: string, hideBorder: boolean): Promise<void> {
+    await this.database.runAsync(
+      `UPDATE collections
+       SET hide_border = CASE
+         WHEN icon_uri IS NOT NULL AND icon_uri NOT LIKE 'material:%' THEN ?
+         ELSE 0
+       END, updated_at = ? WHERE id = ?`,
+      hideBorder ? 1 : 0,
       Date.now(),
       id,
     );

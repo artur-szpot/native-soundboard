@@ -12,8 +12,9 @@ directory and randomizer collections now support nested navigation,
 breadcrumbs, sound membership organization, cycle-safe reparenting, and
 descendant-aware random playback with recent-selection history. Local audio
 import and sound and collection editing are also implemented.
-Images, metadata export/import, and release work below remain planned and must
-not be treated as implemented behavior.
+Built-in and imported icon selection, final app branding, and the About screen
+are implemented. Metadata export/import and the remaining release work below
+remain planned and must not be treated as implemented behavior.
 
 ## Product Purpose
 
@@ -100,6 +101,11 @@ sound, a layered play treatment for a randomizer, folder for a directory, and
 menu for the menu command. This refers to the Material icon set, not the
 web-focused MUI component library.
 
+Image-backed buttons use the app background instead of the fallback icon color.
+Image-backed collection buttons can visually hide their border; the border
+width remains unchanged and its color matches the app background so grid
+alignment stays stable.
+
 Buttons have a semi-thick black border. Their graphic is centered and scales
 within the square without changing the grid dimensions. Every button needs an
 accessible label, role, state, visible pressed/focus feedback, and a touch
@@ -159,8 +165,10 @@ The image picker displays available built-in and imported images as square
 buttons. Selecting an image applies it and closes or returns to editing. A
 top-right close button exits without changing the current selection.
 
-Image import is planned. Directory organization and drag-and-drop are future
-considerations and should not shape the first image picker unnecessarily.
+Image import supports PNG, JPEG, and WebP files up to 5 MB and 4096 by 4096
+pixels. Imported images are copied into app-managed storage and can be reused.
+Directory organization and drag-and-drop are future considerations and do not
+shape the first image picker.
 
 ### Collection Details
 
@@ -210,7 +218,8 @@ and retains the original filename in SQLite. Imports validate file existence,
 nonzero size, available storage, decoding, and duration before finalization.
 Failed writes are cleaned up, orphaned managed audio is removed at startup, and
 missing references can be repaired by replacing the file from sound details.
-Image formats and limits remain deferred to the image milestone.
+Image imports accept PNG, JPEG, and WebP files up to 5 MB and 4096 by 4096
+pixels.
 
 Use `expo-sqlite` for persistent metadata, schema versions, and migrations.
 Enable foreign keys and WAL mode. Use transactions to keep memberships,
@@ -310,22 +319,28 @@ repository.
 - Rename, membership changes, repair, confirmation, and deletion flows.
 - Format, size, duplicate, collision, and orphan handling.
 
-### 5. Images, About, and Release Readiness
+### 5. Images, About, and Release Readiness (In Progress)
+
+Phase 1 (Complete)
 
 - Built-in and imported icon selection.
 - About screen and media responsibility disclaimer.
-- Final app icon, accessibility audit, device matrix, backup-rule verification,
+- Final app icon
+
+Phase 2 (Planned)
+
+- accessibility audit, device matrix, backup-rule verification,
   privacy documentation, and release configuration.
 - Versioned metadata manifest export/import without bundled media, including a
   workflow for matching referenced filenames to user-selected files.
-- Configure and verify the support URL; do not ship the placeholder without a
-  working destination.
 
 ### Later
 
 - Download sound from URL.
 - Image directory organization and drag-and-drop where platforms support it.
 - Other enhancements based on validated user needs.
+- Configure and verify the support URL; do not ship the placeholder without a
+  working destination.
 
 ## Quality and Acceptance
 
@@ -355,7 +370,6 @@ Features unavailable in Expo Go must be called out before implementation.
 
 ## Open Decisions
 
-- Exact supported image formats, size/dimension limits, and processing policy.
 - Metadata-manifest filename matching, collision handling, and partial-import
   recovery.
 - Support/donation URL to configure before release.

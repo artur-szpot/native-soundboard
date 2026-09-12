@@ -15,6 +15,7 @@ export interface Collection {
   name: string;
   role: CollectionRole;
   iconUri: string | null;
+  hideBorder: boolean;
   parentId: string | null;
   createdAt: number;
   updatedAt: number;

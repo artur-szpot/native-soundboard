@@ -20,7 +20,7 @@ describe("migrateDatabase", () => {
       1,
       "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;",
     );
-    expect(database.withTransactionAsync).toHaveBeenCalledTimes(5);
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(6);
     expect(execAsync.mock.calls[1][0]).toContain(
       "CREATE TABLE IF NOT EXISTS sounds",
     );
@@ -40,7 +40,11 @@ describe("migrateDatabase", () => {
     expect(execAsync.mock.calls[5][0]).toContain(
       "'hideAssignedSoundsInMain', 'true'",
     );
-    expect(execAsync.mock.calls[5][0]).toContain(
+    expect(execAsync.mock.calls[5][0]).toContain("PRAGMA user_version = 5");
+    expect(execAsync.mock.calls[6][0]).toContain(
+      "ADD COLUMN hide_border INTEGER NOT NULL DEFAULT 0",
+    );
+    expect(execAsync.mock.calls[6][0]).toContain(
       `PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`,
     );
   });

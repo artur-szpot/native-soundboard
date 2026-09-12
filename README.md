@@ -16,6 +16,11 @@ The application currently provides:
   opening settings for editable collections.
 - Sound and collection detail screens with rename, role, replacement, and
   confirmed deletion workflows.
+- Built-in icon selection and reusable PNG, JPEG, or WebP image imports for
+  sounds and collections, stored in app-managed document storage.
+- An About screen with source, license, version, and user-media responsibility
+  information.
+- Final native app icons and a system-aware launch splash screen.
 - Collection type changes save immediately, while collection names use an
   explicit checkmark save control.
 - Collection parent changes use a dedicated picker screen that excludes the
@@ -43,12 +48,15 @@ The application currently provides:
 - Jest and React Native Testing Library coverage for migrations, repositories,
   randomizer selection, navigation, and collection-management interactions.
 
-Image selection, metadata export/import, and release-readiness work remain
-roadmap items and are not implemented yet.
+Metadata export/import and the remaining release-readiness work remain roadmap
+items and are not implemented yet.
 
 ## Product Direction
 
-The planned application expands the current sound grid with nested collections. Directory collections organize content, while randomizer collections play one of their assigned sounds. Users will be able to import sounds and images through native system pickers, edit metadata, and choose icons.
+The application uses nested collections: directory collections organize
+content, while randomizer collections play one of their assigned sounds. Users
+can import sounds and images through native system pickers, edit metadata, and
+choose icons.
 
 Planned application data uses SQLite metadata with app-managed media files,
 Expo Router navigation, and versioned metadata export/import. Export manifests
@@ -99,12 +107,11 @@ npm start
 Scan the displayed QR code with Expo Go while the development machine and
 phone are reachable on the same network.
 
-Other generated Expo commands are available:
+Platform-specific Expo commands are available:
 
 ```sh
 npm run ios
 npm run android
-npm run web
 ```
 
 ## Validation

@@ -13,7 +13,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { IconArtwork } from "../../../src/components/IconArtwork";
 import type { Collection, CollectionRole } from "../../../src/domain/models";
+import { isImageIconReference } from "../../../src/icons/iconReferences";
 import { collectionHref } from "../../../src/navigation/routes";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
 import { useTheme } from "../../../src/theme/ThemeProvider";
@@ -21,7 +23,7 @@ import { useTheme } from "../../../src/theme/ThemeProvider";
 export default function OrganizeCollectionRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { collections, refresh } = useRepositories();
+  const { collections, refresh, revision } = useRepositories();
   const { colors } = useTheme();
   const [collection, setCollection] = useState<Collection | null>(null);
   const [name, setName] = useState("");
@@ -43,7 +45,7 @@ export default function OrganizeCollectionRoute() {
           loadError instanceof Error ? loadError.message : String(loadError),
         ),
       );
-  }, [collections, id]);
+  }, [collections, id, revision]);
 
   const saveName = async () => {
     if (!collection) return;
@@ -74,6 +76,23 @@ export default function OrganizeCollectionRoute() {
       refresh();
     } catch (saveError: unknown) {
       setRole(previousRole);
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const changeHideBorder = async (hideBorder: boolean) => {
+    if (!collection) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await collections.updateHideBorder(collection.id, hideBorder);
+      setCollection({ ...collection, hideBorder });
+      refresh();
+    } catch (saveError: unknown) {
       setError(
         saveError instanceof Error ? saveError.message : String(saveError),
       );
@@ -130,6 +149,7 @@ export default function OrganizeCollectionRoute() {
   }
 
   const nameUnchanged = !!collection && name.trim() === collection.name;
+  const hasImage = isImageIconReference(collection?.iconUri ?? null);
 
   return (
     <SafeAreaView
@@ -165,6 +185,69 @@ export default function OrganizeCollectionRoute() {
       <ScrollView contentContainerStyle={styles.list}>
         {collection ? (
           <>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              ICON
+            </Text>
+            <Pressable
+              accessibilityLabel="Choose collection icon"
+              accessibilityRole="button"
+              onPress={() =>
+                router.push(
+                  `/images?id=${encodeURIComponent(collection.id)}&kind=collection` as Href,
+                )
+              }
+              style={[
+                styles.iconPreview,
+                {
+                  borderColor:
+                    hasImage && collection.hideBorder
+                      ? colors.background
+                      : colors.border,
+                  backgroundColor: hasImage
+                    ? colors.background
+                    : colors.collection,
+                },
+              ]}
+            >
+              <IconArtwork
+                color={colors.text}
+                fallback={
+                  collection.role === "randomizer" ? "shuffle" : "folder"
+                }
+                iconUri={collection.iconUri}
+                size={72}
+              />
+            </Pressable>
+            {hasImage ? (
+              <Pressable
+                accessibilityLabel="Hide collection border"
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: collection.hideBorder }}
+                disabled={isSaving}
+                onPress={() => void changeHideBorder(!collection.hideBorder)}
+                style={[
+                  styles.checkboxOption,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                  isSaving && styles.disabled,
+                ]}
+              >
+                <MaterialIcons
+                  color={colors.text}
+                  name={
+                    collection.hideBorder
+                      ? "check-box"
+                      : "check-box-outline-blank"
+                  }
+                  size={26}
+                />
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                  Hide border
+                </Text>
+              </Pressable>
+            ) : null}
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               NAME
             </Text>
@@ -338,6 +421,25 @@ const styles = StyleSheet.create({
   error: { padding: 20, fontSize: 15, textAlign: "center" },
   list: { gap: 10, padding: 20, paddingBottom: 40 },
   sectionTitle: { fontFamily: "Courier", fontSize: 15, fontWeight: "700" },
+  iconPreview: {
+    width: 104,
+    height: 104,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    borderWidth: 3,
+  },
+  checkboxOption: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  checkboxLabel: { fontSize: 16, fontWeight: "700" },
   sectionSpacing: { marginTop: 8 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   input: {

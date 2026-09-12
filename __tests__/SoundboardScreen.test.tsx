@@ -25,6 +25,7 @@ const mockMain: Collection = {
   name: "Main",
   role: "directory",
   iconUri: null,
+  hideBorder: false,
   parentId: null,
   createdAt: 1,
   updatedAt: 1,
@@ -238,6 +239,27 @@ describe("SoundboardScreen", () => {
       "surprise-me",
       expect.arrayContaining([expect.objectContaining({ id: "bloom" })]),
     );
+  });
+
+  it("keeps image tile geometry while visually hiding its border", async () => {
+    mockChildren = [
+      {
+        ...mockFavorites,
+        hideBorder: true,
+        iconUri: "file:///favorites.png",
+      },
+    ];
+    const screen = await renderScreen();
+
+    const directory = await screen.findByRole("button", {
+      name: "Open directory Favorites",
+    });
+
+    expect(directory).toHaveStyle({
+      backgroundColor: "#F2EFE8",
+      borderColor: "#F2EFE8",
+      borderWidth: 3,
+    });
   });
 
   it("shows collection actions last and opens their active-collection routes", async () => {

@@ -1,21 +1,23 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as DocumentPicker from "expo-document-picker";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { IconArtwork } from "../../../src/components/IconArtwork";
 import type { Collection, Sound } from "../../../src/domain/models";
+import { isImageIconReference } from "../../../src/icons/iconReferences";
 import { audioMediaService } from "../../../src/media/AudioMediaService";
 import { usePlayback } from "../../../src/playback/PlaybackProvider";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
@@ -214,7 +216,7 @@ export default function OrganizeSoundRoute() {
   }
 
   const playable = sound
-    ? resolvePlayableSound(sound.id, sound.name, sound.mediaPath)
+    ? resolvePlayableSound(sound.id, sound.iconUri, sound.name, sound.mediaPath)
     : null;
 
   return (
@@ -251,6 +253,34 @@ export default function OrganizeSoundRoute() {
       <ScrollView contentContainerStyle={styles.list}>
         {sound ? (
           <>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              ICON
+            </Text>
+            <Pressable
+              accessibilityLabel="Choose sound icon"
+              accessibilityRole="button"
+              onPress={() =>
+                router.push(
+                  `/images?id=${encodeURIComponent(sound.id)}&kind=sound` as Href,
+                )
+              }
+              style={[
+                styles.iconPreview,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: isImageIconReference(sound.iconUri)
+                    ? colors.background
+                    : colors.accent,
+                },
+              ]}
+            >
+              <IconArtwork
+                color={colors.text}
+                fallback="play-arrow"
+                iconUri={sound.iconUri}
+                size={72}
+              />
+            </Pressable>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               NAME
             </Text>
@@ -439,6 +469,15 @@ const styles = StyleSheet.create({
     fontFamily: "Courier",
     fontSize: 15,
     fontWeight: "700",
+  },
+  iconPreview: {
+    width: 104,
+    height: 104,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    borderWidth: 3,
   },
   instructions: { fontSize: 15, marginBottom: 8 },
   repair: { paddingVertical: 6, fontSize: 15 },

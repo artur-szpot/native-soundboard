@@ -5,6 +5,7 @@ import MenuScreen from "../app/menu";
 import { ThemeProvider } from "../src/theme/ThemeProvider";
 
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 let mockButtonSize: 64 | 80 | 96 | 112 | 132 | 184 = 132;
 const mockPreferences = {
   decreaseButtonSize: jest.fn(),
@@ -17,7 +18,7 @@ const mockPreferences = {
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
 }));
 jest.mock("../src/settings/PreferencesProvider", () => ({
   BUTTON_SIZES: [64, 80, 96, 112, 132, 184],
@@ -115,5 +116,13 @@ describe("MenuScreen", () => {
     expect(
       screen.queryByRole("button", { name: "IMPORT SOUND" }),
     ).not.toBeOnTheScreen();
+  });
+
+  it("opens the About screen", async () => {
+    const screen = await renderScreen();
+
+    await fireEvent.press(screen.getByRole("button", { name: "ABOUT" }));
+
+    expect(mockPush).toHaveBeenCalledWith("/about");
   });
 });

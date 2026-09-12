@@ -184,4 +184,13 @@ export class SqliteSoundRepository implements SoundRepository {
       id,
     );
   }
+
+  async updateIcon(id: string, iconUri: string | null): Promise<void> {
+    await this.database.runAsync(
+      "UPDATE sounds SET icon_uri = ?, updated_at = ? WHERE id = ?",
+      iconUri,
+      Date.now(),
+      id,
+    );
+  }
 }
