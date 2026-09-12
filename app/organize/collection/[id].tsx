@@ -26,24 +26,17 @@ export default function OrganizeCollectionRoute() {
   const [collection, setCollection] = useState<Collection | null>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<CollectionRole>("directory");
-  const [children, setChildren] = useState<readonly Collection[]>([]);
-  const [parents, setParents] = useState<readonly Collection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      collections.getById(id),
-      collections.listValidParents(id),
-      collections.listChildren(id),
-    ])
-      .then(([selectedCollection, validParents, childCollections]) => {
+    collections
+      .getById(id)
+      .then((selectedCollection) => {
         if (!selectedCollection) throw new Error("Collection not found.");
         setCollection(selectedCollection);
         setName(selectedCollection.name);
         setRole(selectedCollection.role);
-        setParents(validParents);
-        setChildren(childCollections);
       })
       .catch((loadError: unknown) =>
         setError(
@@ -52,31 +45,35 @@ export default function OrganizeCollectionRoute() {
       );
   }, [collections, id]);
 
-  const chooseParent = async (parentId: string) => {
-    setError(null);
-    try {
-      await collections.reparent(id, parentId);
-      setCollection((current) =>
-        current ? { ...current, parentId } : current,
-      );
-      refresh();
-      router.back();
-    } catch (moveError: unknown) {
-      setError(
-        moveError instanceof Error ? moveError.message : String(moveError),
-      );
-    }
-  };
-
-  const saveDetails = async () => {
+  const saveName = async () => {
     if (!collection) return;
     setIsSaving(true);
     setError(null);
     try {
-      await collections.update(collection.id, name, role);
-      setCollection({ ...collection, name: name.trim(), role });
+      await collections.update(collection.id, name, collection.role);
+      setCollection({ ...collection, name: name.trim() });
       refresh();
     } catch (saveError: unknown) {
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const changeRole = async (nextRole: CollectionRole) => {
+    if (!collection || nextRole === collection.role) return;
+    const previousRole = collection.role;
+    setRole(nextRole);
+    setIsSaving(true);
+    setError(null);
+    try {
+      await collections.update(collection.id, collection.name, nextRole);
+      setCollection({ ...collection, role: nextRole });
+      refresh();
+    } catch (saveError: unknown) {
+      setRole(previousRole);
       setError(
         saveError instanceof Error ? saveError.message : String(saveError),
       );
@@ -132,8 +129,7 @@ export default function OrganizeCollectionRoute() {
     );
   }
 
-  const detailsUnchanged =
-    !!collection && name.trim() === collection.name && role === collection.role;
+  const nameUnchanged = !!collection && name.trim() === collection.name;
 
   return (
     <SafeAreaView
@@ -172,21 +168,49 @@ export default function OrganizeCollectionRoute() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               NAME
             </Text>
-            <TextInput
-              accessibilityLabel="Collection name"
-              editable={!isSaving}
-              maxLength={80}
-              onChangeText={setName}
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              value={name}
-            />
+            <View style={styles.nameRow}>
+              <TextInput
+                accessibilityLabel="Collection name"
+                editable={!isSaving}
+                maxLength={80}
+                onChangeText={setName}
+                style={[
+                  styles.input,
+                  {
+                    color: colors.text,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+                value={name}
+              />
+              <Pressable
+                accessibilityLabel="Save collection name"
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: isSaving || !name.trim() || nameUnchanged,
+                }}
+                disabled={isSaving || !name.trim() || nameUnchanged}
+                onPress={saveName}
+                style={({ pressed }) => [
+                  styles.nameSaveButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.success,
+                  },
+                  pressed && styles.pressed,
+                  (isSaving || !name.trim() || nameUnchanged) &&
+                    styles.disabled,
+                ]}
+              >
+                <MaterialIcons
+                  color={colors.text}
+                  name="check"
+                  size={26}
+                  testID="collection-name-save-icon"
+                />
+              </Pressable>
+            </View>
             <Text
               style={[
                 styles.sectionTitle,
@@ -210,7 +234,7 @@ export default function OrganizeCollectionRoute() {
                     }}
                     disabled={isMainRandomizer || isSaving}
                     key={option}
-                    onPress={() => setRole(option)}
+                    onPress={() => void changeRole(option)}
                     style={[
                       styles.roleOption,
                       {
@@ -233,108 +257,34 @@ export default function OrganizeCollectionRoute() {
                 );
               })}
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{
-                disabled: isSaving || !name.trim() || detailsUnchanged,
-              }}
-              disabled={isSaving || !name.trim() || detailsUnchanged}
-              onPress={saveDetails}
-              style={[
-                styles.command,
-                { borderColor: colors.border, backgroundColor: colors.accent },
-                (isSaving || !name.trim() || detailsUnchanged) &&
-                  styles.disabled,
-              ]}
-            >
-              <MaterialIcons color={colors.text} name="save" size={22} />
-              <Text style={[styles.commandLabel, { color: colors.text }]}>
-                SAVE DETAILS
-              </Text>
-            </Pressable>
           </>
         ) : null}
 
-        <Text
-          style={[
-            styles.sectionTitle,
-            styles.sectionSpacing,
-            { color: colors.text },
-          ]}
-        >
-          PARENT
-        </Text>
-        <Text style={[styles.instructions, { color: colors.mutedText }]}>
-          Choose a new parent collection.
-        </Text>
-        {parents.map((parent) => (
+        {collection?.parentId ? (
           <Pressable
-            accessibilityRole="radio"
-            accessibilityState={{ checked: collection?.parentId === parent.id }}
-            key={parent.id}
-            onPress={() => chooseParent(parent.id)}
+            accessibilityRole="button"
+            disabled={isSaving}
+            onPress={() =>
+              router.push(
+                `/organize/collection/${collection.id}/parent` as Href,
+              )
+            }
             style={[
-              styles.option,
+              styles.command,
+              styles.sectionSpacing,
               { borderColor: colors.border, backgroundColor: colors.surface },
+              isSaving && styles.disabled,
             ]}
           >
             <MaterialIcons
               color={colors.text}
-              name={parent.role === "directory" ? "folder" : "play-arrow"}
-              size={24}
+              name="drive-file-move"
+              size={22}
             />
-            <Text style={[styles.optionLabel, { color: colors.text }]}>
-              {parent.name}
+            <Text style={[styles.commandLabel, { color: colors.text }]}>
+              CHANGE PARENT
             </Text>
-            {collection?.parentId === parent.id ? (
-              <MaterialIcons color={colors.text} name="check" size={24} />
-            ) : null}
           </Pressable>
-        ))}
-
-        {children.length > 0 ? (
-          <>
-            <Text
-              style={[
-                styles.sectionTitle,
-                styles.sectionSpacing,
-                { color: colors.text },
-              ]}
-            >
-              CHILD COLLECTIONS
-            </Text>
-            {children.map((child) => (
-              <Pressable
-                accessibilityLabel={`Organize ${child.name}`}
-                accessibilityRole="button"
-                key={child.id}
-                onPress={() =>
-                  router.push(`/organize/collection/${child.id}` as Href)
-                }
-                style={[
-                  styles.option,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  color={colors.text}
-                  name={child.role === "directory" ? "folder" : "play-arrow"}
-                  size={24}
-                />
-                <Text style={[styles.optionLabel, { color: colors.text }]}>
-                  {child.name}
-                </Text>
-                <MaterialIcons
-                  color={colors.text}
-                  name="chevron-right"
-                  size={24}
-                />
-              </Pressable>
-            ))}
-          </>
         ) : null}
 
         {collection?.parentId ? (
@@ -387,15 +337,24 @@ const styles = StyleSheet.create({
   },
   error: { padding: 20, fontSize: 15, textAlign: "center" },
   list: { gap: 10, padding: 20, paddingBottom: 40 },
-  instructions: { fontSize: 15, marginBottom: 8 },
   sectionTitle: { fontFamily: "Courier", fontSize: 15, fontWeight: "700" },
   sectionSpacing: { marginTop: 8 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   input: {
+    flex: 1,
     minHeight: 52,
     paddingHorizontal: 14,
     borderRadius: 4,
     borderWidth: 2,
     fontSize: 17,
+  },
+  nameSaveButton: {
+    width: 52,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+    borderWidth: 2,
   },
   roleControl: { flexDirection: "row" },
   roleOption: {
@@ -409,6 +368,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   roleLabel: { fontFamily: "Courier", fontSize: 13, fontWeight: "700" },
+  pressed: { opacity: 0.65 },
   command: {
     minHeight: 50,
     flexDirection: "row",
@@ -421,15 +381,5 @@ const styles = StyleSheet.create({
   },
   commandLabel: { fontFamily: "Courier", fontSize: 14, fontWeight: "700" },
   deleteButton: { marginTop: 24, backgroundColor: "#E74E36" },
-  option: {
-    minHeight: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 14,
-    borderRadius: 4,
-    borderWidth: 2,
-  },
-  optionLabel: { flex: 1, fontSize: 16, fontWeight: "700" },
   disabled: { opacity: 0.42 },
 });

@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 
 import CreateCollectionRoute from "../app/collections/create";
 import OrganizeCollectionRoute from "../app/organize/collection/[id]";
+import ChangeCollectionParentRoute from "../app/organize/collection/[id]/parent";
 import OrganizeSoundRoute from "../app/organize/sound/[id]";
 
 const mockBack = jest.fn();
@@ -34,6 +35,18 @@ const mockFavorites = {
   name: "Favorites",
   parentId: "main",
 };
+const mockArchive = {
+  ...mockMain,
+  id: "archive",
+  name: "Archive",
+  parentId: "main",
+};
+const mockClips = {
+  ...mockMain,
+  id: "clips",
+  name: "Clips",
+  parentId: "archive",
+};
 const mockBloom = {
   id: "bloom",
   name: "Bloom",
@@ -51,7 +64,9 @@ const mockCollections = {
   getById: mockCollectionGetById,
   listAll: jest.fn().mockResolvedValue([mockMain, mockFavorites]),
   listChildren: jest.fn().mockResolvedValue([]),
-  listValidParents: jest.fn().mockResolvedValue([mockMain]),
+  listValidParents: jest
+    .fn()
+    .mockResolvedValue([mockClips, mockArchive, mockMain]),
   reparent: mockReparent,
   update: mockUpdateCollection,
 };
@@ -84,6 +99,7 @@ jest.mock("../src/theme/ThemeProvider", () => ({
       background: "#fff",
       border: "#000",
       mutedText: "#555",
+      success: "#0a0",
       surface: "#fff",
       text: "#000",
     },
@@ -133,7 +149,7 @@ describe("collection management routes", () => {
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("adds a sound membership while keeping Main locked", async () => {
+  it("adds a sound membership without showing immutable Main", async () => {
     mockParams = { id: "bloom" };
     const screen = await render(<OrganizeSoundRoute />);
 
@@ -142,23 +158,55 @@ describe("collection management routes", () => {
         screen.getByRole("checkbox", { name: "Favorites" }),
       ).toBeOnTheScreen(),
     );
-    expect(screen.getByRole("checkbox", { name: "Main" })).toBeDisabled();
+    expect(
+      screen.queryByRole("checkbox", { name: "Main" }),
+    ).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
 
     expect(mockSetMembership).toHaveBeenCalledWith("bloom", "favorites", true);
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("moves a collection to a valid parent", async () => {
+  it("opens parent selection without showing child collections", async () => {
     mockParams = { id: "favorites" };
     const screen = await render(<OrganizeCollectionRoute />);
 
-    await waitFor(() =>
-      expect(screen.getByRole("radio", { name: "Main" })).toBeOnTheScreen(),
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "CHANGE PARENT" }),
     );
-    await fireEvent.press(screen.getByRole("radio", { name: "Main" }));
 
-    expect(mockReparent).toHaveBeenCalledWith("favorites", "main");
+    expect(screen.queryByText("CHILD COLLECTIONS")).not.toBeOnTheScreen();
+    expect(mockCollections.listChildren).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith(
+      "/organize/collection/favorites/parent",
+    );
+  });
+
+  it("moves a collection from the parent selection screen", async () => {
+    mockParams = { id: "favorites" };
+    const screen = await render(<ChangeCollectionParentRoute />);
+
+    const currentParent = await screen.findByRole("radio", { name: "Main" });
+    const archive = screen.getByRole("radio", { name: "Archive" });
+    const clips = screen.getByRole("radio", { name: "Clips" });
+    expect(currentParent).toBeChecked();
+    expect(currentParent).toBeDisabled();
+    expect(screen.getAllByRole("radio")).toEqual([
+      currentParent,
+      archive,
+      clips,
+    ]);
+    expect(archive).toHaveStyle({
+      marginLeft: 20,
+    });
+    expect(clips).toHaveStyle({
+      marginLeft: 40,
+    });
+    await fireEvent.press(currentParent);
+    expect(mockReparent).not.toHaveBeenCalled();
+    await fireEvent.press(archive);
+
+    expect(mockReparent).toHaveBeenCalledWith("favorites", "archive");
     expect(mockRefresh).toHaveBeenCalledTimes(1);
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
@@ -179,15 +227,14 @@ describe("collection management routes", () => {
     );
   });
 
-  it("converts a directory to a randomizer and deletes it after confirmation", async () => {
+  it("auto-saves collection type changes", async () => {
     mockParams = { id: "favorites" };
-    const alert = jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
     const screen = await render(<OrganizeCollectionRoute />);
 
     await fireEvent.press(
       await screen.findByRole("radio", { name: "randomizer collection" }),
     );
-    await fireEvent.press(screen.getByRole("button", { name: "SAVE DETAILS" }));
+
     await waitFor(() =>
       expect(mockUpdateCollection).toHaveBeenCalledWith(
         "favorites",
@@ -195,9 +242,49 @@ describe("collection management routes", () => {
         "randomizer",
       ),
     );
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves a changed collection name from the check button", async () => {
+    mockParams = { id: "favorites" };
+    const screen = await render(<OrganizeCollectionRoute />);
+    const saveButton = await screen.findByRole("button", {
+      name: "Save collection name",
+    });
+
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveStyle({
+      width: 52,
+      height: 52,
+      backgroundColor: "#0a0",
+    });
+    expect(screen.getByTestId("collection-name-save-icon")).toHaveProp(
+      "name",
+      "check",
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Collection name"),
+      "Best Sounds",
+    );
+    expect(saveButton).toBeEnabled();
+    await fireEvent.press(saveButton);
+
+    await waitFor(() =>
+      expect(mockUpdateCollection).toHaveBeenCalledWith(
+        "favorites",
+        "Best Sounds",
+        "directory",
+      ),
+    );
+  });
+
+  it("deletes a collection after confirmation", async () => {
+    mockParams = { id: "favorites" };
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
+    const screen = await render(<OrganizeCollectionRoute />);
 
     await fireEvent.press(
-      screen.getByRole("button", { name: "Delete collection" }),
+      await screen.findByRole("button", { name: "Delete collection" }),
     );
     const destructiveAction = alert.mock.calls[0][2]?.find(
       (action) => action.style === "destructive",

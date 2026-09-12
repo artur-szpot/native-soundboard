@@ -25,5 +25,8 @@ export interface SoundCollectionMembership {
   collectionId: string;
 }
 
-export type SettingKey = "buttonSize" | "themePreference";
+export type SettingKey =
+  | "buttonSize"
+  | "hideAssignedSoundsInMain"
+  | "themePreference";
 export type ThemePreference = "system" | "light" | "dark";

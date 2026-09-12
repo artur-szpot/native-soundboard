@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-  Platform,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -58,7 +58,9 @@ export default function OrganizeSoundRoute() {
         if (!selectedSound) throw new Error("Sound not found.");
         setSound(selectedSound);
         setName(selectedSound.name);
-        setAllCollections(availableCollections);
+        setAllCollections(
+          availableCollections.filter((collection) => collection.id !== "main"),
+        );
         setMemberships(new Set(collectionIds));
       })
       .catch((loadError: unknown) =>
@@ -357,19 +359,16 @@ export default function OrganizeSoundRoute() {
           Choose the collections containing this sound.
         </Text>
         {allCollections.map((collection) => {
-          const isMain = collection.id === "main";
           const isChecked = memberships.has(collection.id);
           return (
             <Pressable
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: isChecked, disabled: isMain }}
-              disabled={isMain}
+              accessibilityState={{ checked: isChecked }}
               key={collection.id}
               onPress={() => toggleMembership(collection.id)}
               style={[
                 styles.option,
                 { borderColor: colors.border, backgroundColor: colors.surface },
-                isMain && styles.locked,
               ]}
             >
               <MaterialIcons
@@ -381,9 +380,6 @@ export default function OrganizeSoundRoute() {
                 {" "}
                 {collection.name}{" "}
               </Text>
-              {isMain ? (
-                <MaterialIcons color={colors.mutedText} name="lock" size={20} />
-              ) : null}
             </Pressable>
           );
         })}
@@ -483,6 +479,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   optionLabel: { flex: 1, fontSize: 16, fontWeight: "700" },
-  locked: { opacity: 0.7 },
   disabled: { opacity: 0.42 },
 });

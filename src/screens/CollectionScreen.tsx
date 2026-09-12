@@ -29,10 +29,18 @@ import { useTheme } from "../theme/ThemeProvider";
 
 const GRID_GAP = 18;
 const PAGE_PADDING = 20;
+const GRID_ACTIONS = {
+  addCollection: { icon: "add", label: "Add new collection" },
+  importSound: { icon: "audio-file", label: "Import sound" },
+  settings: { icon: "settings", label: "Settings" },
+} as const;
+
+type GridAction = keyof typeof GRID_ACTIONS;
 
 type GridItem =
   | { kind: "collection"; value: Collection }
-  | { kind: "sound"; value: Sound; playable: PlayableSound };
+  | { kind: "sound"; value: Sound; playable: PlayableSound }
+  | { kind: "action"; action: GridAction };
 
 interface CollectionData {
   ancestors: readonly Collection[];
@@ -52,7 +60,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
   const { colors, statusBarStyle } = useTheme();
   const { error: playbackError } = usePlayback();
   const { collections, revision, sounds } = useRepositories();
-  const { buttonSize } = usePreferences();
+  const { buttonSize, hideAssignedSoundsInMain } = usePreferences();
   const [data, setData] = useState<CollectionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -67,7 +75,10 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
           collections.getById(collectionId),
           collections.listAncestors(collectionId),
           collections.listChildren(collectionId),
-          sounds.listByCollection(collectionId),
+          sounds.listByCollection(
+            collectionId,
+            collectionId === "main" && hideAssignedSoundsInMain,
+          ),
         ]);
       if (!collection) {
         throw new Error("Collection not found.");
@@ -112,6 +123,11 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               value: sound,
               playable,
             })),
+            { kind: "action", action: "addCollection" },
+            { kind: "action", action: "importSound" },
+            ...(collection.id === "main"
+              ? []
+              : [{ kind: "action" as const, action: "settings" as const }]),
           ],
           randomizerSounds: new Map(randomizerEntries),
           unavailableCount: directSounds.length - playableDirectSounds.length,
@@ -128,7 +144,14 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
     return () => {
       isCancelled = true;
     };
-  }, [collectionId, collections, retryCount, revision, sounds]);
+  }, [
+    collectionId,
+    collections,
+    hideAssignedSoundsInMain,
+    retryCount,
+    revision,
+    sounds,
+  ]);
 
   const availableWidth = Math.max(0, width - PAGE_PADDING * 2);
   const columnCount = Math.max(
@@ -249,19 +272,22 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
       ) : null}
 
       <FlatList
-        ListEmptyComponent={
-          <Text style={[styles.empty, { color: colors.mutedText }]}>
-            This collection is empty.
-          </Text>
+        ListHeaderComponent={
+          data.items.every((item) => item.kind === "action") ? (
+            <Text style={[styles.empty, { color: colors.mutedText }]}>
+              This collection is empty.
+            </Text>
+          ) : null
         }
         columnWrapperStyle={columnCount > 1 ? styles.row : undefined}
-        contentContainerStyle={[
-          styles.grid,
-          data.items.length === 0 && styles.emptyGrid,
-        ]}
+        contentContainerStyle={styles.grid}
         data={data.items}
         key={columnCount}
-        keyExtractor={(item) => `${item.kind}:${item.value.id}`}
+        keyExtractor={(item) =>
+          item.kind === "action"
+            ? `${item.kind}:${item.action}`
+            : `${item.kind}:${item.value.id}`
+        }
         numColumns={columnCount}
         renderItem={({ item }) =>
           item.kind === "sound" ? (
@@ -270,7 +296,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               size={buttonSize}
               sound={item.playable}
             />
-          ) : (
+          ) : item.kind === "collection" ? (
             <CollectionButton
               collection={item.value}
               onLongPress={() => routeToOrganizer("collection", item.value.id)}
@@ -278,6 +304,53 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               playableSounds={data.randomizerSounds.get(item.value.id) ?? []}
               size={buttonSize}
             />
+          ) : (
+            <View style={[styles.gridItem, { width: buttonSize }]}>
+              <Pressable
+                accessibilityLabel={GRID_ACTIONS[item.action].label}
+                accessibilityRole="button"
+                onPress={() => {
+                  if (item.action === "addCollection") {
+                    router.push({
+                      pathname: "/collections/create",
+                      params: { parentId: collectionId },
+                    } as Href);
+                  } else if (item.action === "importSound") {
+                    router.push(
+                      `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
+                    );
+                  } else {
+                    routeToOrganizer("collection", collectionId);
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  {
+                    width: buttonSize,
+                    height: buttonSize,
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    shadowColor: colors.shadow,
+                  },
+                  pressed && styles.actionButtonPressed,
+                ]}
+              >
+                <MaterialIcons
+                  color={colors.text}
+                  name={GRID_ACTIONS[item.action].icon}
+                  size={Math.round(buttonSize * 0.46)}
+                />
+              </Pressable>
+              <Text
+                numberOfLines={2}
+                style={[
+                  styles.gridItemLabel,
+                  { color: colors.text, maxWidth: buttonSize },
+                ]}
+              >
+                {GRID_ACTIONS[item.action].label}
+              </Text>
+            </View>
           )
         }
       />
@@ -347,10 +420,28 @@ const styles = StyleSheet.create({
     gap: GRID_GAP,
     padding: PAGE_PADDING,
   },
-  emptyGrid: {
-    flexGrow: 1,
+  gridItem: { alignItems: "center", gap: 8 },
+  actionButton: {
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 3,
+    borderRadius: 6,
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
+  actionButtonPressed: {
+    transform: [{ translateX: 4 }, { translateY: 4 }],
+    shadowOffset: { width: 2, height: 2 },
+    elevation: 2,
+  },
+  gridItemLabel: {
+    minHeight: 40,
+    fontFamily: "Courier",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
   },
   empty: { fontSize: 16, textAlign: "center" },
   row: { justifyContent: "center", gap: GRID_GAP },
