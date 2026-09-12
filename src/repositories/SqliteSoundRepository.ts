@@ -86,12 +86,24 @@ export class SqliteSoundRepository implements SoundRepository {
     return row ? mapSound(row) : null;
   }
 
-  async listByCollection(collectionId: string): Promise<readonly Sound[]> {
+  async listByCollection(
+    collectionId: string,
+    hideAssignedSounds = false,
+  ): Promise<readonly Sound[]> {
+    const hideAssignedFilter =
+      collectionId === "main" && hideAssignedSounds
+        ? `AND NOT EXISTS (
+            SELECT 1 FROM sound_collection_memberships other_memberships
+            WHERE other_memberships.sound_id = sounds.id
+              AND other_memberships.collection_id <> 'main'
+          )`
+        : "";
     const rows = await this.database.getAllAsync<SoundRow>(
       `SELECT sounds.* FROM sounds
        INNER JOIN sound_collection_memberships memberships
          ON memberships.sound_id = sounds.id
        WHERE memberships.collection_id = ?
+       ${hideAssignedFilter}
        ORDER BY sounds.name COLLATE NOCASE`,
       collectionId,
     );

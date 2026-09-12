@@ -2,6 +2,27 @@ import { SqliteCollectionRepository } from "../src/repositories/SqliteCollection
 import { SqliteSoundRepository } from "../src/repositories/SqliteSoundRepository";
 
 describe("SQLite collection and sound repositories", () => {
+  it("can hide sounds with non-Main memberships from Main", async () => {
+    const database = { getAllAsync: jest.fn().mockResolvedValue([]) };
+    const repository = new SqliteSoundRepository(database as never);
+
+    await repository.listByCollection("main", true);
+
+    expect(database.getAllAsync).toHaveBeenCalledWith(
+      expect.stringContaining("AND other_memberships.collection_id <> 'main'"),
+      "main",
+    );
+  });
+
+  it("does not apply the Main filter to another collection", async () => {
+    const database = { getAllAsync: jest.fn().mockResolvedValue([]) };
+    const repository = new SqliteSoundRepository(database as never);
+
+    await repository.listByCollection("favorites", true);
+
+    expect(database.getAllAsync.mock.calls[0][0]).not.toContain("NOT EXISTS");
+  });
+
   it("prevents removing a sound from Main", async () => {
     const database = { runAsync: jest.fn() };
     const repository = new SqliteSoundRepository(database as never);

@@ -82,12 +82,12 @@ describe("ImportSoundRoute", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Choose audio file" }),
     );
-    expect(screen.getByLabelText("Sound name")).toHaveProp("value", "air horn");
+    expect(screen.getByLabelText("Sound name")).toHaveProp("value", "air-horn");
     await fireEvent.press(screen.getByRole("button", { name: "IMPORT" }));
 
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith(
-        "air horn",
+        "air-horn",
         "media/sounds/imported.mp3",
         "air-horn.mp3",
       ),
@@ -101,6 +101,49 @@ describe("ImportSoundRoute", () => {
       pathname: "/collections/[collectionId]",
       params: { collectionId: "favorites" },
     });
+  });
+
+  it("updates the name from every selected filename without changing punctuation", async () => {
+    mockPick
+      .mockResolvedValueOnce({
+        canceled: false,
+        assets: [
+          {
+            name: "first-sound_v1.mp3",
+            size: 1024,
+            uri: "file:///cache/first-sound_v1.mp3",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        assets: [
+          {
+            name: "second--sound_final.wav",
+            size: 1024,
+            uri: "file:///cache/second--sound_final.wav",
+          },
+        ],
+      });
+    const screen = await render(<ImportSoundRoute />);
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Choose audio file" }),
+    );
+    expect(screen.getByLabelText("Sound name")).toHaveProp(
+      "value",
+      "first-sound_v1",
+    );
+
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Selected audio file first-sound_v1.mp3",
+      }),
+    );
+    expect(screen.getByLabelText("Sound name")).toHaveProp(
+      "value",
+      "second--sound_final",
+    );
   });
 
   it("rolls back metadata and media when adding the active membership fails", async () => {

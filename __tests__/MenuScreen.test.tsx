@@ -5,19 +5,19 @@ import MenuScreen from "../app/menu";
 import { ThemeProvider } from "../src/theme/ThemeProvider";
 
 const mockBack = jest.fn();
-const mockPush = jest.fn();
 let mockButtonSize: 64 | 80 | 96 | 112 | 132 | 184 = 132;
 const mockPreferences = {
   decreaseButtonSize: jest.fn(),
+  hideAssignedSoundsInMain: true,
   increaseButtonSize: jest.fn(),
+  setHideAssignedSoundsInMain: jest.fn(),
   setThemePreference: jest.fn(),
   themePreference: "system" as const,
 };
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
 jest.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ collectionId: "main" }),
-  useRouter: () => ({ back: mockBack, push: mockPush }),
+  useRouter: () => ({ back: mockBack }),
 }));
 jest.mock("../src/settings/PreferencesProvider", () => ({
   BUTTON_SIZES: [64, 80, 96, 112, 132, 184],
@@ -87,24 +87,33 @@ describe("MenuScreen", () => {
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
-  it("creates a collection beneath the active directory", async () => {
+  it("hides assigned Main sounds by default and toggles the preference", async () => {
     const screen = await renderScreen();
-
-    await fireEvent.press(
-      screen.getByRole("button", { name: "CREATE COLLECTION" }),
-    );
-
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: "/collections/create",
-      params: { parentId: "main" },
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Hide sounds assigned to collections in main menu",
     });
+
+    expect(checkbox).toBeChecked();
+    await fireEvent.press(checkbox);
+
+    expect(mockPreferences.setHideAssignedSoundsInMain).toHaveBeenCalledWith(
+      false,
+    );
   });
 
-  it("opens sound import for the active directory", async () => {
+  it("does not show the collection creation command", async () => {
     const screen = await renderScreen();
 
-    await fireEvent.press(screen.getByRole("button", { name: "IMPORT SOUND" }));
+    expect(
+      screen.queryByRole("button", { name: "CREATE COLLECTION" }),
+    ).not.toBeOnTheScreen();
+  });
 
-    expect(mockPush).toHaveBeenCalledWith("/sounds/import?collectionId=main");
+  it("does not show the sound import command", async () => {
+    const screen = await renderScreen();
+
+    expect(
+      screen.queryByRole("button", { name: "IMPORT SOUND" }),
+    ).not.toBeOnTheScreen();
   });
 });

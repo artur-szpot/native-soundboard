@@ -17,12 +17,15 @@ export type ButtonSize = (typeof BUTTON_SIZES)[number];
 interface PreferencesContextValue {
   buttonSize: ButtonSize;
   decreaseButtonSize: () => void;
+  hideAssignedSoundsInMain: boolean;
   increaseButtonSize: () => void;
+  setHideAssignedSoundsInMain: (hide: boolean) => void;
   setThemePreference: (preference: ThemePreference) => void;
   themePreference: ThemePreference;
 }
 
 const DEFAULT_BUTTON_SIZE: ButtonSize = 132;
+const DEFAULT_HIDE_ASSIGNED_SOUNDS_IN_MAIN = true;
 const DEFAULT_THEME_PREFERENCE: ThemePreference = "system";
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
@@ -39,6 +42,12 @@ function parseThemePreference(value: string | null): ThemePreference {
     : DEFAULT_THEME_PREFERENCE;
 }
 
+function parseBoolean(value: string | null, defaultValue: boolean): boolean {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return defaultValue;
+}
+
 interface PreferencesProviderProps extends PropsWithChildren {
   fallback?: ReactNode;
 }
@@ -50,6 +59,9 @@ export function PreferencesProvider({
   const database = useSQLiteContext();
   const [repository] = useState(() => new SqliteSettingsRepository(database));
   const [buttonSize, setButtonSize] = useState<ButtonSize>(DEFAULT_BUTTON_SIZE);
+  const [hideAssignedSoundsInMain, setHideAssignedSoundsInMainState] = useState(
+    DEFAULT_HIDE_ASSIGNED_SOUNDS_IN_MAIN,
+  );
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>(
     DEFAULT_THEME_PREFERENCE,
   );
@@ -59,13 +71,26 @@ export function PreferencesProvider({
   useEffect(() => {
     Promise.all([
       repository.get("buttonSize"),
+      repository.get("hideAssignedSoundsInMain"),
       repository.get("themePreference"),
     ])
-      .then(([storedButtonSize, storedThemePreference]) => {
-        setButtonSize(parseButtonSize(storedButtonSize));
-        setThemePreferenceState(parseThemePreference(storedThemePreference));
-        setIsLoaded(true);
-      })
+      .then(
+        ([
+          storedButtonSize,
+          storedHideAssignedSoundsInMain,
+          storedThemePreference,
+        ]) => {
+          setButtonSize(parseButtonSize(storedButtonSize));
+          setHideAssignedSoundsInMainState(
+            parseBoolean(
+              storedHideAssignedSoundsInMain,
+              DEFAULT_HIDE_ASSIGNED_SOUNDS_IN_MAIN,
+            ),
+          );
+          setThemePreferenceState(parseThemePreference(storedThemePreference));
+          setIsLoaded(true);
+        },
+      )
       .catch((error: unknown) => {
         setLoadError(error instanceof Error ? error : new Error(String(error)));
       });
@@ -98,12 +123,21 @@ export function PreferencesProvider({
     void repository.set("themePreference", preference).catch(setLoadError);
   };
 
+  const setHideAssignedSoundsInMain = (hide: boolean) => {
+    setHideAssignedSoundsInMainState(hide);
+    void repository
+      .set("hideAssignedSoundsInMain", String(hide))
+      .catch(setLoadError);
+  };
+
   return (
     <PreferencesContext
       value={{
         buttonSize,
         decreaseButtonSize: () => changeButtonSize(-1),
+        hideAssignedSoundsInMain,
         increaseButtonSize: () => changeButtonSize(1),
+        setHideAssignedSoundsInMain,
         setThemePreference,
         themePreference,
       }}

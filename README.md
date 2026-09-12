@@ -12,22 +12,31 @@ The application currently provides:
 - Nested directory navigation with breadcrumbs and native stack back behavior.
 - Collection creation, sound membership organization, and cycle-safe collection
   reparenting through accessible organizer screens.
+- Collection-grid actions for creating collections, importing sounds, and
+  opening settings for editable collections.
 - Sound and collection detail screens with rename, role, replacement, and
   confirmed deletion workflows.
+- Collection type changes save immediately, while collection names use an
+  explicit checkmark save control.
+- Collection parent changes use a dedicated picker screen that excludes the
+  collection and its descendants, indents options by tree depth, and disables
+  the current parent.
 - Local MP3, M4A, AAC, WAV, and OGG import through the system document picker,
   with 10 MB and one-minute limits and app-managed storage.
 - Descendant-aware randomizers that deduplicate sounds, avoid recent repeats,
-  and share the global non-overlapping playback coordinator.
+  share the global non-overlapping playback coordinator, and open their
+  collection view when held.
 - Fixed-square controls with Material play icons and accessible labels.
-- A dedicated menu screen for button size and theme controls, including a
-  live square-button size preview.
+- A dedicated menu screen for button size, theme, and Main sound filtering,
+  including a live square-button size preview.
 - Loading, pressed, playing, error, and disabled feedback.
 - Shared playback coordination that prevents sounds from overlapping.
 - Portrait and landscape support.
 - An Expo Router navigation shell with safe-area handling and a startup error
   boundary.
 - System-aware light and dark theme tokens.
-- Persisted system, light, or dark theme selection and six button-size levels.
+- Persisted system, light, or dark theme selection, six button-size levels,
+  and an option to hide sounds assigned elsewhere from Main by default.
 - Versioned SQLite metadata migrations and repository implementations for
   sounds, memberships, and the collection tree.
 - Strict TypeScript domain models and repository contracts.
@@ -136,8 +145,10 @@ AGENTS.md                     Repository guidance for coding agents
 ```
 
 The soundboard and nested directory routes read collection content through the
-SQLite repositories. Detail routes edit sound memberships and collection
-parents, names, roles, media, and deletion behavior.
+SQLite repositories. Every sound belongs to Main, but Main can hide sounds that
+also belong to another collection. Detail routes edit non-Main sound
+memberships, names, roles, media, and deletion behavior; collection parent
+changes use a separate picker route.
 
 The four starter WAV files were synthesized specifically for this project and
 contain no external samples. Their generation details and provenance are

@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { type Href, useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,14 +14,13 @@ const THEME_OPTIONS = ["system", "light", "dark"] as const;
 
 export default function MenuScreen() {
   const router = useRouter();
-  const { collectionId = "main" } = useLocalSearchParams<{
-    collectionId?: string;
-  }>();
   const { colors, statusBarStyle } = useTheme();
   const {
     buttonSize,
     decreaseButtonSize,
+    hideAssignedSoundsInMain,
     increaseButtonSize,
+    setHideAssignedSoundsInMain,
     setThemePreference,
     themePreference,
   } = usePreferences();
@@ -54,45 +53,25 @@ export default function MenuScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            router.push(
-              `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
-            )
-          }
+          accessibilityLabel="Hide sounds assigned to collections in main menu"
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: hideAssignedSoundsInMain }}
+          onPress={() => setHideAssignedSoundsInMain(!hideAssignedSoundsInMain)}
           style={({ pressed }) => [
-            styles.commandButton,
-            { borderColor: colors.border, backgroundColor: colors.accent },
-            pressed && styles.pressed,
-          ]}
-        >
-          <MaterialIcons color={colors.text} name="audio-file" size={24} />
-          <Text style={[styles.commandLabel, { color: colors.text }]}>
-            IMPORT SOUND
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            router.push({
-              pathname: "/collections/create",
-              params: { parentId: collectionId },
-            } as Href)
-          }
-          style={({ pressed }) => [
-            styles.commandButton,
-            { borderColor: colors.border, backgroundColor: colors.accent },
+            styles.checkboxOption,
+            { borderColor: colors.border, backgroundColor: colors.surface },
             pressed && styles.pressed,
           ]}
         >
           <MaterialIcons
             color={colors.text}
-            name="create-new-folder"
-            size={24}
+            name={
+              hideAssignedSoundsInMain ? "check-box" : "check-box-outline-blank"
+            }
+            size={26}
           />
-          <Text style={[styles.commandLabel, { color: colors.text }]}>
-            CREATE COLLECTION
+          <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+            Hide sounds assigned to collections in main menu
           </Text>
         </Pressable>
 
@@ -251,21 +230,18 @@ const styles = StyleSheet.create({
     gap: 20,
     marginTop: 20,
   },
-  commandButton: {
-    minHeight: 52,
+  checkboxOption: {
+    width: "100%",
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingHorizontal: 18,
-    borderRadius: 6,
-    borderWidth: 3,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 4,
+    borderWidth: 2,
   },
-  commandLabel: {
-    fontFamily: "Courier",
-    fontSize: 15,
-    fontWeight: "700",
-  },
+  checkboxLabel: { flex: 1, fontSize: 16, fontWeight: "700" },
   sectionTitle: {
     fontFamily: "Courier",
     fontSize: 18,

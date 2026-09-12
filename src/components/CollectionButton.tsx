@@ -38,40 +38,48 @@ export function CollectionButton({
 
   const activate = () => {
     if (isRandomizer) {
-      playRandomizer(collection.id, playableSounds);
+      if (!isDisabled) {
+        playRandomizer(collection.id, playableSounds);
+      }
     } else {
       onOpen();
     }
   };
+  const handleLongPress = isRandomizer ? onOpen : onLongPress;
 
   return (
     <View style={[styles.item, { width: size }]}>
       <Pressable
         accessibilityActions={[
-          { name: "longpress", label: `Organize ${collection.name}` },
+          {
+            name: "longpress",
+            label: isRandomizer
+              ? `Open collection ${collection.name}`
+              : `Organize ${collection.name}`,
+          },
         ]}
         accessibilityHint={
           isRandomizer && playableSounds.length === 0
-            ? "This randomizer has no playable sounds"
-            : undefined
+            ? "This randomizer has no playable sounds. Hold to open the collection"
+            : isRandomizer
+              ? "Hold to open the collection"
+              : undefined
         }
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
-        accessibilityState={{ disabled: isDisabled }}
-        disabled={isDisabled}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (event.nativeEvent.actionName === "longpress") {
-            onLongPress();
+            handleLongPress();
           }
         }}
-        onLongPress={onLongPress}
+        onLongPress={handleLongPress}
         onPress={activate}
         style={({ pressed }) => [
           styles.button,
           {
             width: size,
             height: size,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.collection,
             borderColor: colors.border,
             shadowColor: colors.shadow,
           },
@@ -79,27 +87,12 @@ export function CollectionButton({
           isDisabled && styles.buttonDisabled,
         ]}
       >
-        {isRandomizer ? (
-          <View>
-            <MaterialIcons
-              color={colors.text}
-              name="play-arrow"
-              size={Math.round(size * 0.42)}
-            />
-            <MaterialIcons
-              color={colors.accent}
-              name="play-arrow"
-              size={Math.round(size * 0.24)}
-              style={styles.layeredIcon}
-            />
-          </View>
-        ) : (
-          <MaterialIcons
-            color={colors.text}
-            name="folder"
-            size={Math.round(size * 0.46)}
-          />
-        )}
+        <MaterialIcons
+          color={colors.text}
+          name={isRandomizer ? "shuffle" : "folder"}
+          size={Math.round(size * 0.46)}
+          testID={isRandomizer ? `randomizer-icon-${collection.id}` : undefined}
+        />
       </Pressable>
       <Text
         numberOfLines={2}
@@ -129,7 +122,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   buttonDisabled: { opacity: 0.42 },
-  layeredIcon: { position: "absolute", right: -5, bottom: -2 },
   label: {
     minHeight: 40,
     fontFamily: "Courier",

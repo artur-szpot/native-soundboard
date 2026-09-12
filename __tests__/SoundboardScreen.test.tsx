@@ -13,7 +13,9 @@ const mockNavigate = jest.fn();
 const mockPreferences = {
   buttonSize: 132 as const,
   decreaseButtonSize: jest.fn(),
+  hideAssignedSoundsInMain: true,
   increaseButtonSize: jest.fn(),
+  setHideAssignedSoundsInMain: jest.fn(),
   setThemePreference: jest.fn(),
   themePreference: "system" as const,
 };
@@ -167,6 +169,7 @@ describe("SoundboardScreen", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Play Bloom" }));
 
     expect(mockPlay).toHaveBeenCalledWith("bloom", expect.any(Number));
+    expect(mockSounds.listByCollection).toHaveBeenCalledWith("main", true);
   });
 
   it("disables every sound button while one sound is playing", async () => {
@@ -189,6 +192,9 @@ describe("SoundboardScreen", () => {
     await waitFor(() =>
       expect(screen.getByText("Favorites")).toBeOnTheScreen(),
     );
+    expect(
+      screen.queryByRole("button", { name: "Settings" }),
+    ).not.toBeOnTheScreen();
     expect(screen.queryByLabelText("Button size")).not.toBeOnTheScreen();
     expect(screen.queryByLabelText("Theme")).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("button", { name: "Open menu" }));
@@ -208,9 +214,21 @@ describe("SoundboardScreen", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Open directory Favorites" }),
     );
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Play randomizer Surprise Me" }),
+    const directory = screen.getByRole("button", {
+      name: "Open directory Favorites",
+    });
+    const randomizer = screen.getByRole("button", {
+      name: "Play randomizer Surprise Me",
+    });
+    expect(directory).toHaveStyle({ backgroundColor: "#F3C969" });
+    expect(randomizer).toHaveStyle({ backgroundColor: "#F3C969" });
+    expect(screen.getByTestId("randomizer-icon-surprise-me")).toHaveProp(
+      "name",
+      "shuffle",
     );
+
+    await fireEvent.press(directory);
+    await fireEvent.press(randomizer);
 
     expect(mockPush).toHaveBeenCalledWith({
       pathname: "/collections/[collectionId]",
@@ -220,6 +238,36 @@ describe("SoundboardScreen", () => {
       "surprise-me",
       expect.arrayContaining([expect.objectContaining({ id: "bloom" })]),
     );
+  });
+
+  it("shows collection actions last and opens their active-collection routes", async () => {
+    mockCurrentCollection = mockFavorites;
+    const screen = await renderCollection("favorites");
+
+    const addButton = await screen.findByRole("button", {
+      name: "Add new collection",
+    });
+    const importButton = screen.getByRole("button", { name: "Import sound" });
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.slice(-3)).toEqual([
+      addButton,
+      importButton,
+      settingsButton,
+    ]);
+
+    await fireEvent.press(addButton);
+    await fireEvent.press(importButton);
+    await fireEvent.press(settingsButton);
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/collections/create",
+      params: { parentId: "favorites" },
+    });
+    expect(mockPush).toHaveBeenCalledWith(
+      "/sounds/import?collectionId=favorites",
+    );
+    expect(mockPush).toHaveBeenCalledWith("/organize/collection/favorites");
   });
 
   it("exposes organization as an accessibility action", async () => {
@@ -244,25 +292,35 @@ describe("SoundboardScreen", () => {
     mockDirectSounds = [];
     const screen = await renderCollection("favorites");
 
-    await waitFor(() =>
-      expect(screen.getByText("This collection is empty.")).toBeOnTheScreen(),
-    );
+    await screen.findByRole("button", { name: "Add new collection" });
+    expect(screen.getByText("This collection is empty.")).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("link", { name: "Main" }));
 
     expect(mockNavigate).toHaveBeenCalledWith("/");
+    expect(mockSounds.listByCollection).toHaveBeenCalledWith(
+      "favorites",
+      false,
+    );
   });
 
-  it("disables an empty randomizer and explains why", async () => {
+  it("keeps an empty randomizer available for hold-to-open navigation", async () => {
     mockRandomizerSounds = [];
     const screen = await renderScreen();
 
     const randomizer = await screen.findByRole("button", {
       name: "Play randomizer Surprise Me",
     });
-    expect(randomizer).toBeDisabled();
     expect(randomizer).toHaveProp(
       "accessibilityHint",
-      "This randomizer has no playable sounds",
+      "This randomizer has no playable sounds. Hold to open the collection",
     );
+    await fireEvent.press(randomizer);
+    fireEvent(randomizer, "longPress");
+
+    expect(mockPlayRandomizer).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/collections/[collectionId]",
+      params: { collectionId: "surprise-me" },
+    });
   });
 });

@@ -13,8 +13,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-    audioMediaService,
-    type PickedAudio,
+  audioMediaService,
+  type PickedAudio,
 } from "../../src/media/AudioMediaService";
 import { collectionHref } from "../../src/navigation/routes";
 import { useRepositories } from "../../src/repositories/RepositoryProvider";
@@ -31,9 +31,7 @@ const AUDIO_TYPES = [
 
 function nameFromFilename(filename: string): string {
   const extensionIndex = filename.lastIndexOf(".");
-  return (extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename)
-    .replace(/[_-]+/g, " ")
-    .trim();
+  return extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
 }
 
 export default function ImportSoundRoute() {
@@ -60,7 +58,7 @@ export default function ImportSoundRoute() {
 
       const asset = result.assets[0];
       setPickedAudio(asset);
-      if (!name.trim()) setName(nameFromFilename(asset.name));
+      setName(nameFromFilename(asset.name));
     } catch (pickerError: unknown) {
       setError(
         pickerError instanceof Error

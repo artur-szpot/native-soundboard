@@ -13,7 +13,10 @@ export interface SoundRepository {
   ): Promise<Sound>;
   delete(id: string): Promise<void>;
   getById(id: string): Promise<Sound | null>;
-  listByCollection(collectionId: string): Promise<readonly Sound[]>;
+  listByCollection(
+    collectionId: string,
+    hideAssignedSounds?: boolean,
+  ): Promise<readonly Sound[]>;
   listMembershipCollectionIds(soundId: string): Promise<readonly string[]>;
   replaceMedia(
     id: string,
