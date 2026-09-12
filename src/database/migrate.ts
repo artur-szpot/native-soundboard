@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 export const DATABASE_NAME = "native-soundboard.db";
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 type MigrationDatabase = Pick<
   SQLiteDatabase,
@@ -66,10 +66,26 @@ const migrationOne = `
   PRAGMA user_version = 1;
 `;
 
-export async function migrateDatabase(database: MigrationDatabase): Promise<void> {
-  await database.execAsync("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
+const migrationTwo = `
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('buttonSize', '132');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('themePreference', 'system');
 
-  const result = await database.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+  INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+  VALUES (2, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+
+  PRAGMA user_version = 2;
+`;
+
+export async function migrateDatabase(
+  database: MigrationDatabase,
+): Promise<void> {
+  await database.execAsync(
+    "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;",
+  );
+
+  const result = await database.getFirstAsync<{ user_version: number }>(
+    "PRAGMA user_version",
+  );
   const currentVersion = result?.user_version ?? 0;
 
   if (currentVersion > CURRENT_SCHEMA_VERSION) {
@@ -81,6 +97,12 @@ export async function migrateDatabase(database: MigrationDatabase): Promise<void
   if (currentVersion < 1) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(migrationOne);
+    });
+  }
+
+  if (currentVersion < 2) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(migrationTwo);
     });
   }
 }

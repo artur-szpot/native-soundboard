@@ -1,4 +1,7 @@
-import { CURRENT_SCHEMA_VERSION, migrateDatabase } from "../src/database/migrate";
+import {
+    CURRENT_SCHEMA_VERSION,
+    migrateDatabase,
+} from "../src/database/migrate";
 
 describe("migrateDatabase", () => {
   it("configures SQLite and applies the initial schema in a transaction", async () => {
@@ -6,7 +9,9 @@ describe("migrateDatabase", () => {
     const database = {
       execAsync,
       getFirstAsync: jest.fn().mockResolvedValue({ user_version: 0 }),
-      withTransactionAsync: jest.fn(async (task: () => Promise<void>) => task()),
+      withTransactionAsync: jest.fn(async (task: () => Promise<void>) =>
+        task(),
+      ),
     };
 
     await migrateDatabase(database);
@@ -15,20 +20,29 @@ describe("migrateDatabase", () => {
       1,
       "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;",
     );
-    expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
-    expect(execAsync.mock.calls[1][0]).toContain("CREATE TABLE IF NOT EXISTS sounds");
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(execAsync.mock.calls[1][0]).toContain(
+      "CREATE TABLE IF NOT EXISTS sounds",
+    );
     expect(execAsync.mock.calls[1][0]).toContain("'main', 'Main', 'directory'");
-    expect(execAsync.mock.calls[1][0]).toContain(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
+    expect(execAsync.mock.calls[2][0]).toContain("'buttonSize', '132'");
+    expect(execAsync.mock.calls[2][0]).toContain(
+      `PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`,
+    );
   });
 
   it("rejects a database created by a newer app version", async () => {
     const database = {
       execAsync: jest.fn().mockResolvedValue(undefined),
-      getFirstAsync: jest.fn().mockResolvedValue({ user_version: CURRENT_SCHEMA_VERSION + 1 }),
+      getFirstAsync: jest
+        .fn()
+        .mockResolvedValue({ user_version: CURRENT_SCHEMA_VERSION + 1 }),
       withTransactionAsync: jest.fn(),
     };
 
-    await expect(migrateDatabase(database)).rejects.toThrow("newer than supported");
+    await expect(migrateDatabase(database)).rejects.toThrow(
+      "newer than supported",
+    );
     expect(database.withTransactionAsync).not.toHaveBeenCalled();
   });
 });
