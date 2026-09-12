@@ -2,12 +2,14 @@
 
 ## Status
 
-Native Soundboard is in early development. The current app is a single square
-button that plays one bundled chime, backed by the Foundation architecture:
-Expo Router, safe-area and theme providers, a startup error boundary, versioned
-SQLite migrations, domain and repository contracts, and automated tests. The
-sections below describe the intended product and must not otherwise be treated
-as implemented behavior.
+Native Soundboard is in early development. The current app presents a
+responsive grid of four original bundled sounds with shared single-sound
+playback, Material fallback icons, and persisted button-size and theme
+preferences. It is backed by the Foundation architecture: Expo Router,
+safe-area and theme providers, a startup error boundary, versioned SQLite
+migrations, domain and repository contracts, and automated tests. The sections
+below describe the intended product and must not otherwise be treated as
+implemented behavior.
 
 ## Product Purpose
 
@@ -284,7 +286,7 @@ repository.
   error boundary.
 - Add Jest through `jest-expo` and React Native Testing Library.
 
-### 2. Multi-Sound Soundboard
+### 2. Multi-Sound Soundboard (Complete)
 
 - Responsive square-button grid.
 - Multiple bundled starter sounds with fallback Material Icons.

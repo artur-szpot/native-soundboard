@@ -1,50 +1,79 @@
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Pressable, StyleSheet, Text } from "react-native";
+import {
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { SoundButton } from "../src/components/SoundButton";
+import { usePlayback } from "../src/playback/PlaybackProvider";
+import { usePreferences } from "../src/settings/PreferencesProvider";
+import { starterSounds } from "../src/sounds/starterSounds";
 import { useTheme } from "../src/theme/ThemeProvider";
 
-const chime = require("../assets/chime.wav");
+const GRID_GAP = 18;
+const PAGE_PADDING = 20;
 
 export default function SoundboardScreen() {
-  const player = useAudioPlayer(chime);
-  const status = useAudioPlayerStatus(player);
+  const router = useRouter();
+  const { width } = useWindowDimensions();
   const { colors, statusBarStyle } = useTheme();
-  const isDisabled = !status.isLoaded || status.playing;
-
-  const playSound = async () => {
-    if (isDisabled) {
-      return;
-    }
-
-    if (status.currentTime > 0 || status.didJustFinish) {
-      await player.seekTo(0);
-    }
-
-    player.play();
-  };
-
+  const { error } = usePlayback();
+  const { buttonSize } = usePreferences();
+  const availableWidth = Math.max(0, width - PAGE_PADDING * 2);
+  const columnCount = Math.max(
+    1,
+    Math.floor((availableWidth + GRID_GAP) / (buttonSize + GRID_GAP)),
+  );
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Pressable
-        accessibilityLabel="Play chime"
-        accessibilityRole="button"
-        accessibilityState={{ disabled: isDisabled }}
-        disabled={isDisabled}
-        onPress={playSound}
-        style={({ pressed }) => [
-          styles.button,
-          { backgroundColor: colors.accent, borderColor: colors.border, shadowColor: colors.shadow },
-          pressed && styles.buttonPressed,
-          status.playing && { backgroundColor: colors.playing },
-          !status.isLoaded && styles.buttonLoading,
-        ]}
-      >
-        <Text style={[styles.buttonLabel, { color: colors.text }]}>
-          {status.playing ? "PLAYING" : status.isLoaded ? "PLAY" : "LOADING"}
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <View style={styles.header}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: colors.text }]}
+        >
+          SOUNDBOARD
         </Text>
-      </Pressable>
+        <Pressable
+          accessibilityLabel="Open menu"
+          accessibilityRole="button"
+          onPress={() => router.push("/menu")}
+          style={({ pressed }) => [
+            styles.menuButton,
+            { borderColor: colors.border, backgroundColor: colors.surface },
+            pressed && styles.menuButtonPressed,
+          ]}
+        >
+          <MaterialIcons color={colors.text} name="menu" size={28} />
+        </Pressable>
+      </View>
+      {error ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={[styles.error, { color: colors.text }]}
+        >
+          {error}
+        </Text>
+      ) : null}
+      <FlatList
+        columnWrapperStyle={columnCount > 1 ? styles.row : undefined}
+        contentContainerStyle={styles.grid}
+        data={starterSounds}
+        key={columnCount}
+        keyExtractor={(sound) => sound.id}
+        numColumns={columnCount}
+        renderItem={({ item }) => (
+          <SoundButton size={buttonSize} sound={item} />
+        )}
+      />
       <StatusBar style={statusBarStyle} />
     </SafeAreaView>
   );
@@ -53,32 +82,46 @@ export default function SoundboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  header: {
+    minHeight: 64,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: PAGE_PADDING,
   },
-  button: {
-    width: 184,
-    height: 184,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderRadius: 6,
-    shadowOffset: { width: 8, height: 8 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 8,
-  },
-  buttonPressed: {
-    transform: [{ translateX: 5 }, { translateY: 5 }],
-    shadowOffset: { width: 3, height: 3 },
-    elevation: 3,
-  },
-  buttonLoading: {
-    opacity: 0.55,
-  },
-  buttonLabel: {
+  title: {
+    flexShrink: 1,
     fontFamily: "Courier",
     fontSize: 22,
     fontWeight: "700",
+  },
+  menuButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  menuButtonPressed: {
+    opacity: 0.65,
+  },
+  error: {
+    paddingHorizontal: PAGE_PADDING,
+    paddingVertical: 8,
+    fontSize: 15,
+    textAlign: "center",
+  },
+  grid: {
+    flexGrow: 1,
+    gap: GRID_GAP,
+    justifyContent: "center",
+    padding: PAGE_PADDING,
+  },
+  row: {
+    justifyContent: "center",
+    gap: GRID_GAP,
   },
 });

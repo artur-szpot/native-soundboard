@@ -6,24 +6,27 @@ Native Soundboard is an early-stage, free and open source mobile soundboard buil
 
 The application currently provides:
 
-- One centered square button.
-- One locally bundled chime played with `expo-audio`.
-- Loading, pressed, playing, and disabled feedback.
-- Protection against overlapping playback from repeated taps.
+- A responsive grid of four original bundled sound effects.
+- Fixed-square controls with Material play icons and accessible labels.
+- A dedicated menu screen for button size and theme controls, including a
+  live square-button size preview.
+- Loading, pressed, playing, error, and disabled feedback.
+- Shared playback coordination that prevents sounds from overlapping.
 - Portrait and landscape support.
 - An Expo Router navigation shell with safe-area handling and a startup error
   boundary.
 - System-aware light and dark theme tokens.
+- Persisted system, light, or dark theme selection and six button-size levels.
 - Versioned SQLite metadata migrations and an immutable main collection root.
 - Strict TypeScript domain models and repository contracts.
 - Jest and React Native Testing Library coverage for migrations and the current
   soundboard interaction.
 
-Collections, custom media imports, Material Icons, and the editing screens are roadmap items and are not implemented yet.
+Collections, custom media imports, and the editing screens are roadmap items and are not implemented yet.
 
 ## Product Direction
 
-The planned application expands the MVP into a responsive grid of sounds and nested collections. Directory collections organize content, while randomizer collections play one of their assigned sounds. Users will be able to import sounds and images through native system pickers, edit metadata, choose icons, and adjust button size and theme.
+The planned application expands the current sound grid with nested collections. Directory collections organize content, while randomizer collections play one of their assigned sounds. Users will be able to import sounds and images through native system pickers, edit metadata, and choose icons.
 
 Planned application data uses SQLite metadata with app-managed media files,
 Expo Router navigation, and versioned metadata export/import. Export manifests
@@ -48,8 +51,8 @@ See the [product plan](plan/p0-general-plans.md) for planned screens, data model
 - `expo-router` for native navigation.
 - `expo-sqlite` for versioned local metadata storage.
 - `react-native-safe-area-context` for safe-area layout.
+- Expo-compatible Material Icons for fallback sound graphics.
 - `jest-expo` and React Native Testing Library for automated tests.
-- Material Icons through Expo-compatible vector icons when icon support is implemented.
 
 ## Getting Started
 
@@ -99,21 +102,29 @@ and accessibility checks.
 ## Project Structure
 
 ```text
-app/                          Expo Router root layout and soundboard route
+app/                          Expo Router layout, soundboard, and menu routes
 assets/                       Bundled application and audio assets
 app.json                      Expo application configuration
 src/database/                 SQLite initialization and versioned migrations
 src/domain/                   TypeScript domain models
 src/repositories/             Persistence boundary contracts
+src/playback/                 Shared single-sound playback coordination
+src/settings/                 Persisted button-size and theme preferences
+src/sounds/                   Bundled starter sound catalog
+src/components/               Reusable square sound controls
 src/theme/                    System-aware theme tokens and provider
 __tests__/                    Migration and component tests
 plan/p0-general-plans.md      Product roadmap and open decisions
 AGENTS.md                     Repository guidance for coding agents
 ```
 
-The current route still implements the one-button MVP. Repository
-implementations and additional routes should be introduced only as their
-corresponding roadmap milestones require them.
+The current route implements the multi-sound grid. Repository implementations
+for collection content and additional routes should be introduced only as
+their corresponding roadmap milestones require them.
+
+The four starter WAV files were synthesized specifically for this project and
+contain no external samples. Their generation details and provenance are
+recorded in [assets/sounds/README.md](assets/sounds/README.md).
 
 ## User Media
 

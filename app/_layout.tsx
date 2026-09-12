@@ -2,18 +2,31 @@ import type { ErrorBoundaryProps } from "expo-router";
 import { Stack } from "expo-router";
 import { SQLiteProvider } from "expo-sqlite";
 import { Suspense } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme,
+} from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-import { migrateDatabase } from "../src/database/migrate";
-import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
+import { DATABASE_NAME, migrateDatabase } from "../src/database/migrate";
+import { PlaybackProvider } from "../src/playback/PlaybackProvider";
+import { PreferencesProvider } from "../src/settings/PreferencesProvider";
+import { ThemeProvider } from "../src/theme/ThemeProvider";
 
 function LoadingScreen() {
-  const { colors } = useTheme();
+  const isDark = useColorScheme() === "dark";
+  const backgroundColor = isDark ? "#171716" : "#F2EFE8";
+  const color = isDark ? "#F7F2E8" : "#191919";
 
   return (
-    <View style={[styles.centered, { backgroundColor: colors.background }]}>
-      <Text style={[styles.message, { color: colors.text }]}>
+    <View style={[styles.centered, { backgroundColor }]}>
+      <Text
+        accessibilityLiveRegion="polite"
+        style={[styles.message, { color }]}
+      >
         Loading soundboard
       </Text>
     </View>
@@ -43,17 +56,23 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <Suspense fallback={<LoadingScreen />}>
-          <SQLiteProvider
-            databaseName="native-soundboard.db"
-            onInit={migrateDatabase}
-            useSuspense
-          >
-            <Stack screenOptions={{ headerShown: false }} />
-          </SQLiteProvider>
-        </Suspense>
-      </ThemeProvider>
+      <Suspense fallback={<LoadingScreen />}>
+        <SQLiteProvider
+          databaseName={DATABASE_NAME}
+          onInit={migrateDatabase}
+          useSuspense
+        >
+          <PreferencesProvider fallback={<LoadingScreen />}>
+            <ThemeProvider>
+              <Suspense fallback={<LoadingScreen />}>
+                <PlaybackProvider>
+                  <Stack screenOptions={{ headerShown: false }} />
+                </PlaybackProvider>
+              </Suspense>
+            </ThemeProvider>
+          </PreferencesProvider>
+        </SQLiteProvider>
+      </Suspense>
     </SafeAreaProvider>
   );
 }

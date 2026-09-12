@@ -4,21 +4,32 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import SoundboardScreen from "../app/index";
 import { ThemeProvider } from "../src/theme/ThemeProvider";
 
-const mockPlayer = {
-  play: jest.fn(),
-  seekTo: jest.fn().mockResolvedValue(undefined),
+const mockPlay = jest.fn();
+const mockPush = jest.fn();
+const mockPreferences = {
+  buttonSize: 132 as const,
+  decreaseButtonSize: jest.fn(),
+  increaseButtonSize: jest.fn(),
+  setThemePreference: jest.fn(),
+  themePreference: "system" as const,
 };
+let mockActiveSoundId: string | null = null;
 
-let mockStatus = {
-  isLoaded: true,
-  playing: false,
-  currentTime: 0,
-  didJustFinish: false,
-};
-
-jest.mock("expo-audio", () => ({
-  useAudioPlayer: () => mockPlayer,
-  useAudioPlayerStatus: () => mockStatus,
+jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+jest.mock("../src/settings/PreferencesProvider", () => ({
+  BUTTON_SIZES: [64, 80, 96, 112, 132, 184],
+  usePreferences: () => mockPreferences,
+}));
+jest.mock("../src/playback/PlaybackProvider", () => ({
+  usePlayback: () => ({
+    activeSoundId: mockActiveSoundId,
+    error: null,
+    isBusy: mockActiveSoundId !== null,
+    play: mockPlay,
+  }),
 }));
 
 function renderScreen() {
@@ -39,27 +50,34 @@ function renderScreen() {
 describe("SoundboardScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockStatus = {
-      isLoaded: true,
-      playing: false,
-      currentTime: 0,
-      didJustFinish: false,
-    };
+    mockActiveSoundId = null;
   });
 
-  it("plays the bundled chime when the button is pressed", async () => {
+  it("renders and plays each bundled starter sound", async () => {
     const screen = await renderScreen();
 
-    await fireEvent.press(screen.getByRole("button", { name: "Play chime" }));
+    expect(screen.getAllByRole("button", { name: /^Play / })).toHaveLength(4);
+    await fireEvent.press(screen.getByRole("button", { name: "Play Bloom" }));
 
-    expect(mockPlayer.play).toHaveBeenCalledTimes(1);
+    expect(mockPlay).toHaveBeenCalledWith("bloom", expect.any(Number));
   });
 
-  it("disables the button while audio is playing", async () => {
-    mockStatus = { ...mockStatus, playing: true };
+  it("disables every sound button while one sound is playing", async () => {
+    mockActiveSoundId = "bloom";
     const screen = await renderScreen();
 
-    expect(screen.getByRole("button", { name: "Play chime" })).toBeDisabled();
-    expect(screen.getByText("PLAYING")).toBeOnTheScreen();
+    for (const button of screen.getAllByRole("button", { name: /^Play / })) {
+      expect(button).toBeDisabled();
+    }
+  });
+
+  it("opens the menu from the header", async () => {
+    const screen = await renderScreen();
+
+    expect(screen.queryByLabelText("Button size")).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText("Theme")).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Open menu" }));
+
+    expect(mockPush).toHaveBeenCalledWith("/menu");
   });
 });
