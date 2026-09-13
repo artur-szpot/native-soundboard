@@ -229,7 +229,7 @@ export default function OrganizeCollectionRoute() {
                   styles.checkboxOption,
                   {
                     borderColor: colors.border,
-                    backgroundColor: colors.surface,
+                    backgroundColor: colors.background,
                   },
                   isSaving && styles.disabled,
                 ]}
@@ -437,7 +437,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     borderRadius: 4,
-    borderWidth: 2,
   },
   checkboxLabel: { fontSize: 16, fontWeight: "700" },
   sectionSpacing: { marginTop: 8 },

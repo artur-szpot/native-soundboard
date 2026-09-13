@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { IconArtwork } from "../../../src/components/IconArtwork";
-import type { Collection, Sound } from "../../../src/domain/models";
+import type { Sound } from "../../../src/domain/models";
 import { isImageIconReference } from "../../../src/icons/iconReferences";
 import { audioMediaService } from "../../../src/media/AudioMediaService";
 import { usePlayback } from "../../../src/playback/PlaybackProvider";
@@ -36,62 +36,28 @@ const AUDIO_TYPES = [
 export default function OrganizeSoundRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { collections, refresh, sounds } = useRepositories();
+  const { refresh, revision, sounds } = useRepositories();
   const { activeSoundId, isBusy, play } = usePlayback();
   const { colors } = useTheme();
   const [sound, setSound] = useState<Sound | null>(null);
   const [name, setName] = useState("");
-  const [allCollections, setAllCollections] = useState<readonly Collection[]>(
-    [],
-  );
-  const [memberships, setMemberships] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      sounds.getById(id),
-      collections.listAll(),
-      sounds.listMembershipCollectionIds(id),
-    ])
-      .then(([selectedSound, availableCollections, collectionIds]) => {
+    sounds
+      .getById(id)
+      .then((selectedSound) => {
         if (!selectedSound) throw new Error("Sound not found.");
         setSound(selectedSound);
         setName(selectedSound.name);
-        setAllCollections(
-          availableCollections.filter((collection) => collection.id !== "main"),
-        );
-        setMemberships(new Set(collectionIds));
       })
       .catch((loadError: unknown) =>
         setError(
           loadError instanceof Error ? loadError.message : String(loadError),
         ),
       );
-  }, [collections, id, sounds]);
-
-  const toggleMembership = async (collectionId: string) => {
-    const included = !memberships.has(collectionId);
-    setError(null);
-    try {
-      await sounds.setMembership(id, collectionId, included);
-      setMemberships((current) => {
-        const next = new Set(current);
-        if (included) next.add(collectionId);
-        else next.delete(collectionId);
-        return next;
-      });
-      refresh();
-    } catch (membershipError: unknown) {
-      setError(
-        membershipError instanceof Error
-          ? membershipError.message
-          : String(membershipError),
-      );
-    }
-  };
+  }, [id, revision, sounds]);
 
   const saveName = async () => {
     if (!sound) return;
@@ -254,122 +220,144 @@ export default function OrganizeSoundRoute() {
         {sound ? (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              ICON
-            </Text>
-            <Pressable
-              accessibilityLabel="Choose sound icon"
-              accessibilityRole="button"
-              onPress={() =>
-                router.push(
-                  `/images?id=${encodeURIComponent(sound.id)}&kind=sound` as Href,
-                )
-              }
-              style={[
-                styles.iconPreview,
-                {
-                  borderColor: colors.border,
-                  backgroundColor: isImageIconReference(sound.iconUri)
-                    ? colors.background
-                    : colors.accent,
-                },
-              ]}
-            >
-              <IconArtwork
-                color={colors.text}
-                fallback="play-arrow"
-                iconUri={sound.iconUri}
-                size={72}
-              />
-            </Pressable>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
               NAME
             </Text>
-            <TextInput
-              accessibilityLabel="Sound name"
-              editable={!isSaving}
-              maxLength={80}
-              onChangeText={setName}
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              value={name}
-            />
-            <Text style={[styles.fileName, { color: colors.mutedText }]}>
-              FILE: {sound.originalFilename ?? "Bundled audio"}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{
-                disabled:
-                  isSaving || !name.trim() || name.trim() === sound.name,
-              }}
-              disabled={isSaving || !name.trim() || name.trim() === sound.name}
-              onPress={saveName}
-              style={[
-                styles.command,
-                { borderColor: colors.border, backgroundColor: colors.accent },
-                (isSaving || !name.trim() || name.trim() === sound.name) &&
-                  styles.disabled,
-              ]}
-            >
-              <MaterialIcons color={colors.text} name="save" size={22} />
-              <Text style={[styles.commandLabel, { color: colors.text }]}>
-                SAVE NAME
-              </Text>
-            </Pressable>
-            <View style={styles.commandRow}>
-              <Pressable
-                accessibilityLabel={`Play ${sound.name}`}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: isBusy || !playable }}
-                disabled={isBusy || !playable}
-                onPress={() => playable && play(playable.id, playable.source)}
+            <View style={styles.nameRow}>
+              <TextInput
+                accessibilityLabel="Sound name"
+                editable={!isSaving}
+                maxLength={80}
+                onChangeText={setName}
                 style={[
-                  styles.command,
-                  styles.flexCommand,
+                  styles.input,
                   {
+                    color: colors.text,
                     borderColor: colors.border,
                     backgroundColor: colors.surface,
                   },
-                  (isBusy || !playable) && styles.disabled,
+                ]}
+                value={name}
+              />
+              <Pressable
+                accessibilityLabel="Save sound name"
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled:
+                    isSaving || !name.trim() || name.trim() === sound.name,
+                }}
+                disabled={
+                  isSaving || !name.trim() || name.trim() === sound.name
+                }
+                onPress={saveName}
+                style={({ pressed }) => [
+                  styles.nameSaveButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.success,
+                  },
+                  pressed && styles.pressed,
+                  (isSaving || !name.trim() || name.trim() === sound.name) &&
+                    styles.disabled,
                 ]}
               >
                 <MaterialIcons
                   color={colors.text}
-                  name={activeSoundId === sound.id ? "volume-up" : "play-arrow"}
-                  size={22}
+                  name="check"
+                  size={26}
+                  testID="sound-name-save-icon"
                 />
-                <Text style={[styles.commandLabel, { color: colors.text }]}>
+              </Pressable>
+            </View>
+            <View style={styles.actionRow}>
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel="Choose sound icon"
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push(
+                      `/images?id=${encodeURIComponent(sound.id)}&kind=sound` as Href,
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: isImageIconReference(sound.iconUri)
+                        ? colors.background
+                        : colors.accent,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                  ]}
+                >
+                  <IconArtwork
+                    color={colors.text}
+                    fallback="play-arrow"
+                    iconUri={sound.iconUri}
+                    size={62}
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
+                  ICON
+                </Text>
+              </View>
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel={`Play ${sound.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isBusy || !playable }}
+                  disabled={isBusy || !playable}
+                  onPress={() => playable && play(playable.id, playable.source)}
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.accent,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                    (isBusy || !playable) && styles.disabled,
+                  ]}
+                >
+                  <MaterialIcons
+                    color={colors.text}
+                    name={
+                      activeSoundId === sound.id ? "volume-up" : "play-arrow"
+                    }
+                    size={46}
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
                   PLAY
                 </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isSaving}
-                onPress={replaceAudio}
-                style={[
-                  styles.command,
-                  styles.flexCommand,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  color={colors.text}
-                  name="find-replace"
-                  size={22}
-                />
-                <Text style={[styles.commandLabel, { color: colors.text }]}>
-                  REPLACE AUDIO
+              </View>
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel="Change sound file"
+                  accessibilityRole="button"
+                  disabled={isSaving}
+                  onPress={replaceAudio}
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                    isSaving && styles.disabled,
+                  ]}
+                >
+                  <MaterialIcons
+                    color={colors.text}
+                    name="audio-file"
+                    size={42}
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
+                  CHANGE FILE
                 </Text>
-              </Pressable>
+              </View>
             </View>
             {!playable ? (
               <Text
@@ -382,37 +370,28 @@ export default function OrganizeSoundRoute() {
           </>
         ) : null}
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          COLLECTIONS
-        </Text>
-        <Text style={[styles.instructions, { color: colors.mutedText }]}>
-          Choose the collections containing this sound.
-        </Text>
-        {allCollections.map((collection) => {
-          const isChecked = memberships.has(collection.id);
-          return (
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isChecked }}
-              key={collection.id}
-              onPress={() => toggleMembership(collection.id)}
-              style={[
-                styles.option,
-                { borderColor: colors.border, backgroundColor: colors.surface },
-              ]}
-            >
-              <MaterialIcons
-                color={colors.text}
-                name={isChecked ? "check-box" : "check-box-outline-blank"}
-                size={26}
-              />
-              <Text style={[styles.optionLabel, { color: colors.text }]}>
-                {" "}
-                {collection.name}{" "}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {sound ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSaving}
+            onPress={() =>
+              router.push(
+                `/organize/sound/${encodeURIComponent(sound.id)}/collections` as Href,
+              )
+            }
+            style={({ pressed }) => [
+              styles.command,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              pressed && styles.pressed,
+              isSaving && styles.disabled,
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="folder" size={22} />
+            <Text style={[styles.commandLabel, { color: colors.text }]}>
+              COLLECTIONS
+            </Text>
+          </Pressable>
+        ) : null}
 
         {sound ? (
           <Pressable
@@ -464,32 +443,56 @@ const styles = StyleSheet.create({
   },
   error: { padding: 20, fontSize: 15, textAlign: "center" },
   list: { gap: 10, padding: 20, paddingBottom: 40 },
-  sectionTitle: {
-    marginTop: 8,
-    fontFamily: "Courier",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  iconPreview: {
-    width: 104,
-    height: 104,
-    alignSelf: "center",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-    borderWidth: 3,
-  },
-  instructions: { fontSize: 15, marginBottom: 8 },
+  sectionTitle: { fontFamily: "Courier", fontSize: 15, fontWeight: "700" },
   repair: { paddingVertical: 6, fontSize: 15 },
-  fileName: { fontFamily: "Courier", fontSize: 13 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   input: {
+    flex: 1,
     minHeight: 52,
     paddingHorizontal: 14,
     borderRadius: 4,
     borderWidth: 2,
     fontSize: 17,
   },
-  commandRow: { flexDirection: "row", gap: 10 },
+  nameSaveButton: {
+    width: 52,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 10,
+  },
+  actionItem: { flex: 1, maxWidth: 104, alignItems: "center", gap: 8 },
+  squareButton: {
+    width: "100%",
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    borderWidth: 3,
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
+  squareButtonPressed: {
+    transform: [{ translateX: 4 }, { translateY: 4 }],
+    shadowOffset: { width: 2, height: 2 },
+    elevation: 2,
+  },
+  actionLabel: {
+    minHeight: 36,
+    fontFamily: "Courier",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   command: {
     minHeight: 50,
     flexDirection: "row",
@@ -500,23 +503,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
   },
-  flexCommand: { flex: 1 },
   commandLabel: {
     fontFamily: "Courier",
     fontSize: 14,
     fontWeight: "700",
     textAlign: "center",
   },
+  pressed: { opacity: 0.65 },
   deleteButton: { marginTop: 24, backgroundColor: "#E74E36" },
-  option: {
-    minHeight: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 14,
-    borderRadius: 4,
-    borderWidth: 2,
-  },
-  optionLabel: { flex: 1, fontSize: 16, fontWeight: "700" },
   disabled: { opacity: 0.42 },
 });

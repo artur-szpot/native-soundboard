@@ -5,6 +5,7 @@ import CreateCollectionRoute from "../app/collections/create";
 import OrganizeCollectionRoute from "../app/organize/collection/[id]";
 import ChangeCollectionParentRoute from "../app/organize/collection/[id]/parent";
 import OrganizeSoundRoute from "../app/organize/sound/[id]";
+import SoundCollectionsRoute from "../app/organize/sound/[id]/collections";
 
 const mockBack = jest.fn();
 const mockDismissAll = jest.fn();
@@ -160,21 +161,48 @@ describe("collection management routes", () => {
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("adds a sound membership without showing immutable Main", async () => {
+  it("opens sound collection membership from a full-width button", async () => {
     mockParams = { id: "bloom" };
     const screen = await render(<OrganizeSoundRoute />);
 
-    await waitFor(() =>
-      expect(
-        screen.getByRole("checkbox", { name: "Favorites" }),
-      ).toBeOnTheScreen(),
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "COLLECTIONS" }),
     );
-    expect(
-      screen.queryByRole("checkbox", { name: "Main" }),
-    ).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
 
-    expect(mockSetMembership).toHaveBeenCalledWith("bloom", "favorites", true);
+    expect(mockPush).toHaveBeenCalledWith("/organize/sound/bloom/collections");
+  });
+
+  it("shows tree-ordered sound memberships and toggles them", async () => {
+    mockParams = { id: "bloom" };
+    mockCollections.listAll.mockResolvedValueOnce([
+      mockClips,
+      mockFavorites,
+      mockMain,
+      mockArchive,
+    ]);
+    mockSounds.listMembershipCollectionIds.mockResolvedValueOnce([
+      "main",
+      "clips",
+    ]);
+    const screen = await render(<SoundCollectionsRoute />);
+
+    const archive = await screen.findByRole("checkbox", { name: "Archive" });
+    const clips = screen.getByRole("checkbox", { name: "Clips" });
+    const favorites = screen.getByRole("checkbox", { name: "Favorites" });
+    expect(screen.queryByRole("checkbox", { name: "Main" })).toBeNull();
+    expect(screen.getAllByRole("checkbox")).toEqual([
+      archive,
+      clips,
+      favorites,
+    ]);
+    expect(archive).not.toBeChecked();
+    expect(clips).toBeChecked();
+    expect(clips).toHaveStyle({ marginLeft: 20 });
+    await fireEvent.press(archive);
+
+    await waitFor(() =>
+      expect(mockSetMembership).toHaveBeenCalledWith("bloom", "archive", true),
+    );
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
 
@@ -228,7 +256,19 @@ describe("collection management routes", () => {
 
     const input = await screen.findByLabelText("Sound name");
     await fireEvent.changeText(input, "Morning Bloom");
-    await fireEvent.press(screen.getByRole("button", { name: "SAVE NAME" }));
+    const saveButton = screen.getByRole("button", {
+      name: "Save sound name",
+    });
+    expect(saveButton).toHaveStyle({
+      width: 52,
+      height: 52,
+      backgroundColor: "#0a0",
+    });
+    expect(screen.getByTestId("sound-name-save-icon")).toHaveProp(
+      "name",
+      "check",
+    );
+    await fireEvent.press(saveButton);
 
     await waitFor(() =>
       expect(mockUpdateSoundName).toHaveBeenCalledWith(
@@ -236,6 +276,30 @@ describe("collection management routes", () => {
         "Morning Bloom",
       ),
     );
+  });
+
+  it("shows square icon, play, and file actions below the sound name", async () => {
+    mockParams = { id: "bloom" };
+    const screen = await render(<OrganizeSoundRoute />);
+
+    const iconButton = await screen.findByRole("button", {
+      name: "Choose sound icon",
+    });
+    const playButton = screen.getByRole("button", { name: "Play Bloom" });
+    const fileButton = screen.getByRole("button", {
+      name: "Change sound file",
+    });
+    expect(iconButton).toHaveStyle({ aspectRatio: 1 });
+    expect(playButton).toHaveStyle({ aspectRatio: 1, backgroundColor: "#f00" });
+    expect(fileButton).toHaveStyle({ aspectRatio: 1 });
+    expect(screen.getByText("ICON")).toBeOnTheScreen();
+    expect(screen.getByText("PLAY")).toBeOnTheScreen();
+    expect(screen.getByText("CHANGE FILE")).toBeOnTheScreen();
+
+    await fireEvent.press(iconButton);
+    expect(mockPush).toHaveBeenCalledWith("/images?id=bloom&kind=sound");
+    await fireEvent.press(playButton);
+    expect(mockPlay).toHaveBeenCalledTimes(1);
   });
 
   it("auto-saves collection type changes", async () => {

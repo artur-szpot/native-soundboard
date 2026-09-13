@@ -331,8 +331,37 @@ Phase 2 (Planned)
 
 - accessibility audit, device matrix, backup-rule verification,
   privacy documentation, and release configuration.
+
+Accessibility audit: Systematically verify that the app works for users with disabilities. This includes screen-reader labels and navigation order, minimum touch-target sizes, text scaling, color contrast, dark mode, reduced motion, and non-gesture alternatives. It should combine automated checks with manual testing using VoiceOver and TalkBack.
+
+Device matrix: Define and test a representative set of supported environments—for example, small and large phones, tablets, portrait and landscape, supported iOS and Android versions, and Android 12+ splash/icon behavior. The goal is sensible coverage rather than testing every device.
+
+Backup-rule verification: Confirm that actual native backup behavior matches the plan: SQLite/settings remain backup-eligible; imported media remains eligible for iOS backup; and on Android, imported media is excluded from cloud Auto Backup but permitted in device-to-device transfer. This requires inspecting generated native configuration and ideally testing backup/restore.
+
+Privacy documentation: Document what data the app stores, where it remains, when it can leave the device, applicable OS backup behavior, required permissions, and the absence of analytics, ads, or cloud synchronization. This includes user-facing privacy information and accurate App Store/Google Play privacy disclosures.
+
+Release configuration: Prepare production metadata and build settings: app identifiers, version/build numbers, signing credentials, EAS production profiles, store names/descriptions/screenshots, icons and splash assets, permission text, update behavior, and release build validation. It also includes generating production builds and completing pre-submission checks.
+
 - Versioned metadata manifest export/import without bundled media, including a
   workflow for matching referenced filenames to user-selected files.
+
+Versioned metadata manifest: Export the soundboard’s structure—sound names, collections, memberships, settings, icon choices, and referenced media filenames—to a JSON file. A schema version allows future app versions to migrate older exports safely.
+
+Without bundled media: The export does not include audio or imported image files. This keeps it small and avoids redistributing copyrighted media.
+
+Import workflow: Import recreates the soundboard metadata, but media references initially remain unresolved. The app lists missing files and lets the user choose local replacements through the system picker.
+
+Filename matching: If the manifest references airhorn.mp3, the app can suggest or automatically match a selected file with that name. Matching should still validate file type, size, and contents rather than trusting the filename alone.
+
+In short, it backs up the soundboard arrangement, not the media library. It is a separate future feature and is not necessarily part of release-readiness phase 2 unless added explicitly.
+
+Recommended behavior:
+
+Exact expected managed file found: accept automatically.
+One unambiguous validated filename/checksum match: accept automatically.
+No match: ask the user to select a replacement or leave it unresolved.
+Multiple plausible matches: ask the user to choose.
+Invalid/corrupt match: reject it and request another file.
 
 ### Later
 

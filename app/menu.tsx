@@ -59,7 +59,7 @@ export default function MenuScreen() {
           onPress={() => setHideAssignedSoundsInMain(!hideAssignedSoundsInMain)}
           style={({ pressed }) => [
             styles.checkboxOption,
-            { borderColor: colors.border, backgroundColor: colors.surface },
+            { borderColor: colors.border, backgroundColor: colors.background },
             pressed && styles.pressed,
           ]}
         >
@@ -252,7 +252,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 4,
-    borderWidth: 2,
   },
   checkboxLabel: { flex: 1, fontSize: 16, fontWeight: "700" },
   sectionTitle: {
