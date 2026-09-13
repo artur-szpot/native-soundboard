@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 export const DATABASE_NAME = "native-soundboard.db";
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 type MigrationDatabase = Pick<
   SQLiteDatabase,
@@ -146,6 +146,17 @@ const migrationSix = `
   PRAGMA user_version = 6;
 `;
 
+const migrationSeven = `
+  ALTER TABLE sounds
+  ADD COLUMN hide_border INTEGER NOT NULL DEFAULT 0
+  CHECK (hide_border IN (0, 1));
+
+  INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+  VALUES (7, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+
+  PRAGMA user_version = 7;
+`;
+
 export async function migrateDatabase(
   database: MigrationDatabase,
 ): Promise<void> {
@@ -197,6 +208,12 @@ export async function migrateDatabase(
   if (currentVersion < 6) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(migrationSix);
+    });
+  }
+
+  if (currentVersion < 7) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(migrationSeven);
     });
   }
 }

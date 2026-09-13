@@ -43,6 +43,7 @@ export default function OrganizeSoundRoute() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingBorder, setIsSavingBorder] = useState(false);
 
   useEffect(() => {
     sounds
@@ -73,6 +74,23 @@ export default function OrganizeSoundRoute() {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const changeHideBorder = async (hideBorder: boolean) => {
+    if (!sound) return;
+    setIsSavingBorder(true);
+    setError(null);
+    try {
+      await sounds.updateHideBorder(sound.id, hideBorder);
+      setSound({ ...sound, hideBorder });
+      refresh();
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsSavingBorder(false);
     }
   };
 
@@ -182,8 +200,15 @@ export default function OrganizeSoundRoute() {
   }
 
   const playable = sound
-    ? resolvePlayableSound(sound.id, sound.iconUri, sound.name, sound.mediaPath)
+    ? resolvePlayableSound(
+        sound.id,
+        sound.iconUri,
+        sound.name,
+        sound.mediaPath,
+        sound.hideBorder,
+      )
     : null;
+  const hasImage = isImageIconReference(sound?.iconUri ?? null);
 
   return (
     <SafeAreaView
@@ -281,7 +306,10 @@ export default function OrganizeSoundRoute() {
                   style={({ pressed }) => [
                     styles.squareButton,
                     {
-                      borderColor: colors.border,
+                      borderColor:
+                        hasImage && sound.hideBorder
+                          ? colors.background
+                          : colors.border,
                       backgroundColor: isImageIconReference(sound.iconUri)
                         ? colors.background
                         : colors.accent,
@@ -359,6 +387,31 @@ export default function OrganizeSoundRoute() {
                 </Text>
               </View>
             </View>
+            {hasImage ? (
+              <Pressable
+                accessibilityLabel="Hide sound border"
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: sound.hideBorder }}
+                disabled={isSavingBorder}
+                onPress={() => void changeHideBorder(!sound.hideBorder)}
+                style={[
+                  styles.checkboxOption,
+                  { backgroundColor: colors.background },
+                  isSavingBorder && styles.disabled,
+                ]}
+              >
+                <MaterialIcons
+                  color={colors.text}
+                  name={
+                    sound.hideBorder ? "check-box" : "check-box-outline-blank"
+                  }
+                  size={26}
+                />
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                  Hide border
+                </Text>
+              </Pressable>
+            ) : null}
             {!playable ? (
               <Text
                 accessibilityRole="alert"
@@ -493,6 +546,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
   },
+  checkboxOption: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  checkboxLabel: { fontSize: 16, fontWeight: "700" },
   command: {
     minHeight: 50,
     flexDirection: "row",

@@ -55,7 +55,8 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
               : hasImage
                 ? colors.background
                 : colors.accent,
-            borderColor: colors.border,
+            borderColor:
+              hasImage && sound.hideBorder ? colors.background : colors.border,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,

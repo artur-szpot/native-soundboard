@@ -25,11 +25,13 @@ export function IconArtwork({
 }: IconArtworkProps) {
   const materialName = materialIconName(iconUri);
   if (materialName || !iconUri) {
+    const iconName = materialName ?? fallback;
+    const iconSize = iconName === "folder" ? Math.round(size * 0.84) : size;
     return (
       <MaterialIcons
         color={color}
-        name={materialName ?? fallback}
-        size={size}
+        name={iconName}
+        size={iconSize}
         testID={testID}
       />
     );

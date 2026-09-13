@@ -10,6 +10,7 @@ interface SoundRow {
   media_path: string;
   original_filename?: string | null;
   icon_uri: string | null;
+  hide_border: number;
   created_at: number;
   updated_at: number;
 }
@@ -21,6 +22,7 @@ function mapSound(row: SoundRow): Sound {
     mediaPath: row.media_path,
     originalFilename: row.original_filename ?? null,
     iconUri: row.icon_uri,
+    hideBorder: row.hide_border === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -69,6 +71,7 @@ export class SqliteSoundRepository implements SoundRepository {
       mediaPath,
       originalFilename,
       iconUri: null,
+      hideBorder: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -189,6 +192,19 @@ export class SqliteSoundRepository implements SoundRepository {
     await this.database.runAsync(
       "UPDATE sounds SET icon_uri = ?, updated_at = ? WHERE id = ?",
       iconUri,
+      Date.now(),
+      id,
+    );
+  }
+
+  async updateHideBorder(id: string, hideBorder: boolean): Promise<void> {
+    await this.database.runAsync(
+      `UPDATE sounds
+       SET hide_border = CASE
+         WHEN icon_uri IS NOT NULL AND icon_uri NOT LIKE 'material:%' THEN ?
+         ELSE 0
+       END, updated_at = ? WHERE id = ?`,
+      hideBorder ? 1 : 0,
       Date.now(),
       id,
     );

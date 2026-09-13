@@ -6,6 +6,7 @@ export interface Sound {
   mediaPath: string;
   originalFilename?: string | null;
   iconUri: string | null;
+  hideBorder: boolean;
   createdAt: number;
   updatedAt: number;
 }

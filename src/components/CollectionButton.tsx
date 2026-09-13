@@ -97,7 +97,11 @@ export function CollectionButton({
           fallback={isRandomizer ? "shuffle" : "folder"}
           iconUri={collection.iconUri}
           size={Math.round(size * 0.72)}
-          testID={isRandomizer ? `randomizer-icon-${collection.id}` : undefined}
+          testID={
+            isRandomizer
+              ? `randomizer-icon-${collection.id}`
+              : `directory-icon-${collection.id}`
+          }
         />
       </Pressable>
       <Text
