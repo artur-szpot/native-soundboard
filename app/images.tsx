@@ -151,30 +151,14 @@ export default function ImagePickerScreen() {
       ) : null}
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.grid}>
-          <Pressable
-            accessibilityLabel="Use default icon"
-            accessibilityRole="button"
-            disabled={isSaving}
-            onPress={() => void saveIcon(null)}
-            style={[
-              styles.option,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-            ]}
-          >
-            <IconArtwork
-              color={colors.text}
-              fallback={fallback}
-              iconUri={null}
-              size={52}
-            />
-          </Pressable>
           {BUILT_IN_ICONS.map((icon) => {
             const reference = materialIconReference(icon.name);
+            const isSelected = currentIconUri === reference;
             return (
               <Pressable
                 accessibilityLabel={icon.label}
                 accessibilityRole="button"
-                accessibilityState={{ selected: currentIconUri === reference }}
+                accessibilityState={{ selected: isSelected }}
                 disabled={isSaving}
                 key={icon.name}
                 onPress={() => void saveIcon(reference)}
@@ -184,12 +168,18 @@ export default function ImagePickerScreen() {
                     borderColor: colors.border,
                     backgroundColor: colors.surface,
                   },
-                  currentIconUri === reference && {
-                    backgroundColor: colors.playing,
+                  isSelected && {
+                    borderColor: colors.accent,
+                    borderWidth: 5,
                   },
                 ]}
               >
-                <MaterialIcons color={colors.text} name={icon.name} size={52} />
+                <MaterialIcons
+                  color={isSelected ? colors.accent : colors.text}
+                  name={icon.name}
+                  size={52}
+                  testID={`built-in-icon-${icon.name}`}
+                />
               </Pressable>
             );
           })}
@@ -205,7 +195,8 @@ export default function ImagePickerScreen() {
                 styles.option,
                 { borderColor: colors.border, backgroundColor: colors.surface },
                 currentIconUri === iconUri && {
-                  backgroundColor: colors.playing,
+                  borderColor: colors.accent,
+                  borderWidth: 5,
                 },
               ]}
             >
@@ -218,6 +209,31 @@ export default function ImagePickerScreen() {
             </Pressable>
           ))}
         </View>
+        <Pressable
+          accessibilityLabel="Use default icon"
+          accessibilityRole="button"
+          accessibilityState={{
+            selected: currentIconUri === null,
+            disabled: isSaving || currentIconUri === null,
+          }}
+          disabled={isSaving || currentIconUri === null}
+          onPress={() => void saveIcon(null)}
+          style={[
+            styles.defaultButton,
+            { borderColor: colors.border, backgroundColor: colors.surface },
+            isSaving && styles.disabled,
+          ]}
+        >
+          <MaterialIcons
+            color={colors.text}
+            name="not-interested"
+            size={28}
+            testID="default-icon"
+          />
+          <Text style={[styles.importLabel, { color: colors.text }]}>
+            DEFAULT
+          </Text>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           disabled={isSaving}
@@ -277,6 +293,16 @@ const styles = StyleSheet.create({
     borderWidth: 3,
   },
   importButton: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  defaultButton: {
+    width: "100%",
     minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
