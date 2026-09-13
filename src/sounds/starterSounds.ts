@@ -3,6 +3,7 @@ import { resolveManagedAudio } from "../media/mediaPaths";
 
 export interface PlayableSound {
   id: string;
+  hideBorder?: boolean;
   iconUri?: string | null;
   name: string;
   source: AudioSource;
@@ -44,9 +45,12 @@ export function resolveBundledSound(
   iconUri: string | null,
   name: string,
   mediaPath: string,
+  hideBorder = false,
 ): PlayableSound | null {
   const source = bundledSources.get(mediaPath);
-  return source === undefined ? null : { id, iconUri, name, source };
+  return source === undefined
+    ? null
+    : { id, hideBorder, iconUri, name, source };
 }
 
 export function resolvePlayableSound(
@@ -54,10 +58,13 @@ export function resolvePlayableSound(
   iconUri: string | null,
   name: string,
   mediaPath: string,
+  hideBorder = false,
 ): PlayableSound | null {
-  const bundled = resolveBundledSound(id, iconUri, name, mediaPath);
+  const bundled = resolveBundledSound(id, iconUri, name, mediaPath, hideBorder);
   if (bundled) return bundled;
 
   const file = resolveManagedAudio(mediaPath);
-  return file?.exists ? { id, iconUri, name, source: file.uri } : null;
+  return file?.exists
+    ? { id, hideBorder, iconUri, name, source: file.uri }
+    : null;
 }

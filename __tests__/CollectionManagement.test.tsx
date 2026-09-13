@@ -18,11 +18,14 @@ const mockSetMembership = jest.fn();
 const mockPlay = jest.fn();
 const mockUpdateCollection = jest.fn();
 const mockUpdateHideBorder = jest.fn();
+const mockUpdateSoundHideBorder = jest.fn();
 const mockDeleteCollection = jest.fn();
 const mockUpdateSoundName = jest.fn();
 let mockParams: Record<string, string> = {};
 let mockRevision = 0;
 let mockFavoritesIconUri: string | null = null;
+let mockBloomIconUri: string | null = null;
+let mockBloomHideBorder = false;
 
 const mockMain = {
   id: "main",
@@ -57,6 +60,7 @@ const mockBloom = {
   name: "Bloom",
   mediaPath: "bundled:bloom",
   iconUri: null,
+  hideBorder: false,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -79,9 +83,14 @@ const mockCollections = {
   updateHideBorder: mockUpdateHideBorder,
 };
 const mockSounds = {
-  getById: jest.fn().mockResolvedValue(mockBloom),
+  getById: jest.fn(async () => ({
+    ...mockBloom,
+    iconUri: mockBloomIconUri,
+    hideBorder: mockBloomHideBorder,
+  })),
   listMembershipCollectionIds: jest.fn().mockResolvedValue(["main"]),
   setMembership: mockSetMembership,
+  updateHideBorder: mockUpdateSoundHideBorder,
   updateName: mockUpdateSoundName,
 };
 const mockRepositories = {
@@ -137,8 +146,11 @@ describe("collection management routes", () => {
     mockUpdateCollection.mockResolvedValue(undefined);
     mockDeleteCollection.mockResolvedValue(undefined);
     mockUpdateHideBorder.mockResolvedValue(undefined);
+    mockUpdateSoundHideBorder.mockResolvedValue(undefined);
     mockUpdateSoundName.mockResolvedValue(undefined);
     mockFavoritesIconUri = null;
+    mockBloomIconUri = null;
+    mockBloomHideBorder = false;
     mockRevision = 0;
   });
 
@@ -211,7 +223,9 @@ describe("collection management routes", () => {
     const screen = await render(<OrganizeCollectionRoute />);
 
     await fireEvent.press(
-      await screen.findByRole("button", { name: "CHANGE PARENT" }),
+      await screen.findByRole("button", {
+        name: "Change collection parent",
+      }),
     );
 
     expect(screen.queryByText("CHILD COLLECTIONS")).not.toBeOnTheScreen();
@@ -302,13 +316,28 @@ describe("collection management routes", () => {
     expect(mockPlay).toHaveBeenCalledTimes(1);
   });
 
-  it("auto-saves collection type changes", async () => {
+  it("shows square collection actions and toggles its role", async () => {
     mockParams = { id: "favorites" };
     const screen = await render(<OrganizeCollectionRoute />);
 
-    await fireEvent.press(
-      await screen.findByRole("radio", { name: "randomizer collection" }),
+    const iconButton = await screen.findByRole("button", {
+      name: "Choose collection icon",
+    });
+    const roleButton = screen.getByRole("button", {
+      name: "Change collection role",
+    });
+    const parentButton = screen.getByRole("button", {
+      name: "Change collection parent",
+    });
+    expect(iconButton).toHaveStyle({ aspectRatio: 1 });
+    expect(roleButton).toHaveStyle({ aspectRatio: 1 });
+    expect(parentButton).toHaveStyle({ aspectRatio: 1 });
+    expect(screen.queryByRole("radiogroup")).not.toBeOnTheScreen();
+    expect(screen.getByTestId("collection-role-icon")).toHaveProp(
+      "name",
+      "folder",
     );
+    await fireEvent.press(roleButton);
 
     await waitFor(() =>
       expect(mockUpdateCollection).toHaveBeenCalledWith(
@@ -316,6 +345,10 @@ describe("collection management routes", () => {
         "Favorites",
         "randomizer",
       ),
+    );
+    expect(screen.getByTestId("collection-role-icon")).toHaveProp(
+      "name",
+      "shuffle",
     );
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
@@ -375,6 +408,89 @@ describe("collection management routes", () => {
       expect(mockUpdateHideBorder).toHaveBeenCalledWith("favorites", true),
     );
     expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps collection actions stable while hiding the border", async () => {
+    let finishUpdate: (() => void) | undefined;
+    mockUpdateHideBorder.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    mockParams = { id: "favorites" };
+    mockFavoritesIconUri = "media/images/favorites.png";
+    const screen = await render(<OrganizeCollectionRoute />);
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Hide collection border",
+    });
+    const roleButton = screen.getByRole("button", {
+      name: "Change collection role",
+    });
+    const parentButton = screen.getByRole("button", {
+      name: "Change collection parent",
+    });
+    await fireEvent.press(checkbox);
+
+    expect(checkbox).toBeDisabled();
+    expect(roleButton).toBeEnabled();
+    expect(parentButton).toBeEnabled();
+    expect(roleButton).not.toHaveStyle({ opacity: 0.42 });
+    expect(parentButton).not.toHaveStyle({ opacity: 0.42 });
+
+    finishUpdate?.();
+    await waitFor(() => expect(checkbox).toBeEnabled());
+  });
+
+  it("shows Hide border for a sound image and persists the choice", async () => {
+    mockParams = { id: "bloom" };
+    mockBloomIconUri = "media/images/bloom.png";
+    const screen = await render(<OrganizeSoundRoute />);
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Hide sound border",
+    });
+    expect(checkbox).not.toBeChecked();
+    await fireEvent.press(checkbox);
+
+    await waitFor(() =>
+      expect(mockUpdateSoundHideBorder).toHaveBeenCalledWith("bloom", true),
+    );
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps unrelated sound actions stable while hiding the border", async () => {
+    let finishUpdate: (() => void) | undefined;
+    mockUpdateSoundHideBorder.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    mockParams = { id: "bloom" };
+    mockBloomIconUri = "media/images/bloom.png";
+    const screen = await render(<OrganizeSoundRoute />);
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Hide sound border",
+    });
+    const fileButton = screen.getByRole("button", {
+      name: "Change sound file",
+    });
+    const collectionsButton = screen.getByRole("button", {
+      name: "COLLECTIONS",
+    });
+    await fireEvent.press(checkbox);
+
+    expect(checkbox).toBeDisabled();
+    expect(fileButton).toBeEnabled();
+    expect(collectionsButton).toBeEnabled();
+    expect(fileButton).not.toHaveStyle({ opacity: 0.42 });
+    expect(collectionsButton).not.toHaveStyle({ opacity: 0.42 });
+
+    finishUpdate?.();
+    await waitFor(() => expect(checkbox).toBeEnabled());
   });
 
   it("deletes a collection after confirmation", async () => {

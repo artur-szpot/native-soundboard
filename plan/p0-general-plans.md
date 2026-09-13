@@ -102,9 +102,9 @@ menu for the menu command. This refers to the Material icon set, not the
 web-focused MUI component library.
 
 Image-backed buttons use the app background instead of the fallback icon color.
-Image-backed collection buttons can visually hide their border; the border
-width remains unchanged and its color matches the app background so grid
-alignment stays stable.
+Image-backed sound and collection buttons can visually hide their border; the
+border width remains unchanged and its color matches the app background so
+grid alignment stays stable.
 
 Buttons have a semi-thick black border. Their graphic is centered and scales
 within the square without changing the grid dimensions. Every button needs an

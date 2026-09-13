@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { IconArtwork } from "../../../src/components/IconArtwork";
-import type { Collection, CollectionRole } from "../../../src/domain/models";
+import type { Collection } from "../../../src/domain/models";
 import { isImageIconReference } from "../../../src/icons/iconReferences";
 import { collectionHref } from "../../../src/navigation/routes";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
@@ -27,9 +27,9 @@ export default function OrganizeCollectionRoute() {
   const { colors } = useTheme();
   const [collection, setCollection] = useState<Collection | null>(null);
   const [name, setName] = useState("");
-  const [role, setRole] = useState<CollectionRole>("directory");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingBorder, setIsSavingBorder] = useState(false);
 
   useEffect(() => {
     collections
@@ -38,7 +38,6 @@ export default function OrganizeCollectionRoute() {
         if (!selectedCollection) throw new Error("Collection not found.");
         setCollection(selectedCollection);
         setName(selectedCollection.name);
-        setRole(selectedCollection.role);
       })
       .catch((loadError: unknown) =>
         setError(
@@ -64,10 +63,12 @@ export default function OrganizeCollectionRoute() {
     }
   };
 
-  const changeRole = async (nextRole: CollectionRole) => {
-    if (!collection || nextRole === collection.role) return;
+  const changeRole = async () => {
+    if (!collection || collection.id === "main") return;
+    const nextRole =
+      collection.role === "directory" ? "randomizer" : "directory";
     const previousRole = collection.role;
-    setRole(nextRole);
+    setCollection({ ...collection, role: nextRole });
     setIsSaving(true);
     setError(null);
     try {
@@ -75,7 +76,7 @@ export default function OrganizeCollectionRoute() {
       setCollection({ ...collection, role: nextRole });
       refresh();
     } catch (saveError: unknown) {
-      setRole(previousRole);
+      setCollection({ ...collection, role: previousRole });
       setError(
         saveError instanceof Error ? saveError.message : String(saveError),
       );
@@ -86,7 +87,7 @@ export default function OrganizeCollectionRoute() {
 
   const changeHideBorder = async (hideBorder: boolean) => {
     if (!collection) return;
-    setIsSaving(true);
+    setIsSavingBorder(true);
     setError(null);
     try {
       await collections.updateHideBorder(collection.id, hideBorder);
@@ -97,7 +98,7 @@ export default function OrganizeCollectionRoute() {
         saveError instanceof Error ? saveError.message : String(saveError),
       );
     } finally {
-      setIsSaving(false);
+      setIsSavingBorder(false);
     }
   };
 
@@ -186,69 +187,6 @@ export default function OrganizeCollectionRoute() {
         {collection ? (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              ICON
-            </Text>
-            <Pressable
-              accessibilityLabel="Choose collection icon"
-              accessibilityRole="button"
-              onPress={() =>
-                router.push(
-                  `/images?id=${encodeURIComponent(collection.id)}&kind=collection` as Href,
-                )
-              }
-              style={[
-                styles.iconPreview,
-                {
-                  borderColor:
-                    hasImage && collection.hideBorder
-                      ? colors.background
-                      : colors.border,
-                  backgroundColor: hasImage
-                    ? colors.background
-                    : colors.collection,
-                },
-              ]}
-            >
-              <IconArtwork
-                color={colors.text}
-                fallback={
-                  collection.role === "randomizer" ? "shuffle" : "folder"
-                }
-                iconUri={collection.iconUri}
-                size={72}
-              />
-            </Pressable>
-            {hasImage ? (
-              <Pressable
-                accessibilityLabel="Hide collection border"
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: collection.hideBorder }}
-                disabled={isSaving}
-                onPress={() => void changeHideBorder(!collection.hideBorder)}
-                style={[
-                  styles.checkboxOption,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                  },
-                  isSaving && styles.disabled,
-                ]}
-              >
-                <MaterialIcons
-                  color={colors.text}
-                  name={
-                    collection.hideBorder
-                      ? "check-box"
-                      : "check-box-outline-blank"
-                  }
-                  size={26}
-                />
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-                  Hide border
-                </Text>
-              </Pressable>
-            ) : null}
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
               NAME
             </Text>
             <View style={styles.nameRow}>
@@ -294,80 +232,140 @@ export default function OrganizeCollectionRoute() {
                 />
               </Pressable>
             </View>
-            <Text
-              style={[
-                styles.sectionTitle,
-                styles.sectionSpacing,
-                { color: colors.text },
-              ]}
-            >
-              TYPE
-            </Text>
-            <View accessibilityRole="radiogroup" style={styles.roleControl}>
-              {(["directory", "randomizer"] as const).map((option) => {
-                const isMainRandomizer =
-                  collection.id === "main" && option === "randomizer";
-                return (
-                  <Pressable
-                    accessibilityLabel={`${option} collection`}
-                    accessibilityRole="radio"
-                    accessibilityState={{
-                      checked: role === option,
-                      disabled: isMainRandomizer,
-                    }}
-                    disabled={isMainRandomizer || isSaving}
-                    key={option}
-                    onPress={() => void changeRole(option)}
-                    style={[
-                      styles.roleOption,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: colors.surface,
-                      },
-                      role === option && { backgroundColor: colors.playing },
-                      isMainRandomizer && styles.disabled,
-                    ]}
-                  >
-                    <MaterialIcons
-                      color={colors.text}
-                      name={option === "directory" ? "folder" : "play-arrow"}
-                      size={24}
-                    />
-                    <Text style={[styles.roleLabel, { color: colors.text }]}>
-                      {option.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.actionRow}>
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel="Choose collection icon"
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push(
+                      `/images?id=${encodeURIComponent(collection.id)}&kind=collection` as Href,
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor:
+                        hasImage && collection.hideBorder
+                          ? colors.background
+                          : colors.border,
+                      backgroundColor: hasImage
+                        ? colors.background
+                        : colors.collection,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                  ]}
+                >
+                  <IconArtwork
+                    color={colors.text}
+                    fallback={
+                      collection.role === "randomizer" ? "shuffle" : "folder"
+                    }
+                    iconUri={collection.iconUri}
+                    size={62}
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
+                  ICON
+                </Text>
+              </View>
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel="Change collection role"
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: isSaving || collection.id === "main",
+                  }}
+                  disabled={isSaving || collection.id === "main"}
+                  onPress={() => void changeRole()}
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                    (isSaving || collection.id === "main") && styles.disabled,
+                  ]}
+                >
+                  <MaterialIcons
+                    color={colors.text}
+                    name={
+                      collection.role === "directory" ? "folder" : "shuffle"
+                    }
+                    size={46}
+                    testID="collection-role-icon"
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
+                  CHANGE ROLE
+                </Text>
+              </View>
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel="Change collection parent"
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: isSaving || !collection.parentId,
+                  }}
+                  disabled={isSaving || !collection.parentId}
+                  onPress={() =>
+                    router.push(
+                      `/organize/collection/${collection.id}/parent` as Href,
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                    (isSaving || !collection.parentId) && styles.disabled,
+                  ]}
+                >
+                  <MaterialIcons
+                    color={colors.text}
+                    name="drive-file-move"
+                    size={42}
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
+                  CHANGE PARENT
+                </Text>
+              </View>
             </View>
+            {hasImage ? (
+              <Pressable
+                accessibilityLabel="Hide collection border"
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: collection.hideBorder }}
+                disabled={isSavingBorder}
+                onPress={() => void changeHideBorder(!collection.hideBorder)}
+                style={[
+                  styles.checkboxOption,
+                  { backgroundColor: colors.background },
+                  isSavingBorder && styles.disabled,
+                ]}
+              >
+                <MaterialIcons
+                  color={colors.text}
+                  name={
+                    collection.hideBorder
+                      ? "check-box"
+                      : "check-box-outline-blank"
+                  }
+                  size={26}
+                />
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                  Hide border
+                </Text>
+              </Pressable>
+            ) : null}
           </>
-        ) : null}
-
-        {collection?.parentId ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSaving}
-            onPress={() =>
-              router.push(
-                `/organize/collection/${collection.id}/parent` as Href,
-              )
-            }
-            style={[
-              styles.command,
-              styles.sectionSpacing,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              isSaving && styles.disabled,
-            ]}
-          >
-            <MaterialIcons
-              color={colors.text}
-              name="drive-file-move"
-              size={22}
-            />
-            <Text style={[styles.commandLabel, { color: colors.text }]}>
-              CHANGE PARENT
-            </Text>
-          </Pressable>
         ) : null}
 
         {collection?.parentId ? (
@@ -421,15 +419,6 @@ const styles = StyleSheet.create({
   error: { padding: 20, fontSize: 15, textAlign: "center" },
   list: { gap: 10, padding: 20, paddingBottom: 40 },
   sectionTitle: { fontFamily: "Courier", fontSize: 15, fontWeight: "700" },
-  iconPreview: {
-    width: 104,
-    height: 104,
-    alignSelf: "center",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-    borderWidth: 3,
-  },
   checkboxOption: {
     minHeight: 48,
     flexDirection: "row",
@@ -439,7 +428,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   checkboxLabel: { fontSize: 16, fontWeight: "700" },
-  sectionSpacing: { marginTop: 8 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   input: {
     flex: 1,
@@ -457,18 +445,37 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
   },
-  roleControl: { flexDirection: "row" },
-  roleOption: {
-    minWidth: 132,
-    minHeight: 60,
-    flex: 1,
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 10,
+  },
+  actionItem: { flex: 1, maxWidth: 104, alignItems: "center", gap: 8 },
+  squareButton: {
+    width: "100%",
+    aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    padding: 8,
-    borderWidth: 2,
+    borderRadius: 6,
+    borderWidth: 3,
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
   },
-  roleLabel: { fontFamily: "Courier", fontSize: 13, fontWeight: "700" },
+  squareButtonPressed: {
+    transform: [{ translateX: 4 }, { translateY: 4 }],
+    shadowOffset: { width: 2, height: 2 },
+    elevation: 2,
+  },
+  actionLabel: {
+    minHeight: 36,
+    fontFamily: "Courier",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   pressed: { opacity: 0.65 },
   command: {
     minHeight: 50,

@@ -92,6 +92,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             sound.iconUri,
             sound.name,
             sound.mediaPath,
+            sound.hideBorder,
           ),
         }))
         .filter(
@@ -112,6 +113,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
                     sound.iconUri,
                     sound.name,
                     sound.mediaPath,
+                    sound.hideBorder,
                   ),
                 )
                 .filter((sound): sound is PlayableSound => sound !== null),

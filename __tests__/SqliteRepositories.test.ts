@@ -191,4 +191,18 @@ describe("SQLite collection and sound repositories", () => {
       "favorites",
     );
   });
+
+  it("only hides borders for sounds with imported images", async () => {
+    const database = { runAsync: jest.fn().mockResolvedValue(undefined) };
+    const repository = new SqliteSoundRepository(database as never);
+
+    await repository.updateHideBorder("bloom", true);
+
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining("icon_uri NOT LIKE 'material:%'"),
+      1,
+      expect.any(Number),
+      "bloom",
+    );
+  });
 });

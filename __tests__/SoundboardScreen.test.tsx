@@ -49,6 +49,7 @@ const mockStarterSounds: Sound[] = [
     name: "Bloom",
     mediaPath: "bundled:bloom",
     iconUri: null,
+    hideBorder: false,
     createdAt: 1,
     updatedAt: 1,
   },
@@ -57,6 +58,7 @@ const mockStarterSounds: Sound[] = [
     name: "Click",
     mediaPath: "bundled:click",
     iconUri: null,
+    hideBorder: false,
     createdAt: 1,
     updatedAt: 1,
   },
@@ -65,6 +67,7 @@ const mockStarterSounds: Sound[] = [
     name: "Rise",
     mediaPath: "bundled:rise",
     iconUri: null,
+    hideBorder: false,
     createdAt: 1,
     updatedAt: 1,
   },
@@ -73,6 +76,7 @@ const mockStarterSounds: Sound[] = [
     name: "Low",
     mediaPath: "bundled:low",
     iconUri: null,
+    hideBorder: false,
     createdAt: 1,
     updatedAt: 1,
   },
@@ -223,9 +227,17 @@ describe("SoundboardScreen", () => {
     });
     expect(directory).toHaveStyle({ backgroundColor: "#F3C969" });
     expect(randomizer).toHaveStyle({ backgroundColor: "#F3C969" });
+    expect(screen.getByTestId("directory-icon-favorites")).toHaveProp(
+      "size",
+      Math.round(Math.round(132 * 0.72) * 0.84),
+    );
     expect(screen.getByTestId("randomizer-icon-surprise-me")).toHaveProp(
       "name",
       "shuffle",
+    );
+    expect(screen.getByTestId("randomizer-icon-surprise-me")).toHaveProp(
+      "size",
+      Math.round(132 * 0.72),
     );
 
     await fireEvent.press(directory);
@@ -256,6 +268,24 @@ describe("SoundboardScreen", () => {
     });
 
     expect(directory).toHaveStyle({
+      backgroundColor: "#F2EFE8",
+      borderColor: "#F2EFE8",
+      borderWidth: 3,
+    });
+  });
+
+  it("keeps sound tile geometry while visually hiding its image border", async () => {
+    mockDirectSounds = [
+      {
+        ...mockStarterSounds[0],
+        hideBorder: true,
+        iconUri: "file:///bloom.png",
+      },
+    ];
+    const screen = await renderScreen();
+
+    const sound = await screen.findByRole("button", { name: "Play Bloom" });
+    expect(sound).toHaveStyle({
       backgroundColor: "#F2EFE8",
       borderColor: "#F2EFE8",
       borderWidth: 3,

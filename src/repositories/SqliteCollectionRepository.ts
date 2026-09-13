@@ -21,6 +21,7 @@ interface SoundRow {
   media_path: string;
   original_filename?: string | null;
   icon_uri: string | null;
+  hide_border: number;
   created_at: number;
   updated_at: number;
 }
@@ -45,6 +46,7 @@ function mapSound(row: SoundRow): Sound {
     mediaPath: row.media_path,
     originalFilename: row.original_filename ?? null,
     iconUri: row.icon_uri,
+    hideBorder: row.hide_border === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

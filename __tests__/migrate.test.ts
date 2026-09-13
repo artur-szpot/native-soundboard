@@ -20,7 +20,7 @@ describe("migrateDatabase", () => {
       1,
       "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;",
     );
-    expect(database.withTransactionAsync).toHaveBeenCalledTimes(6);
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(7);
     expect(execAsync.mock.calls[1][0]).toContain(
       "CREATE TABLE IF NOT EXISTS sounds",
     );
@@ -44,7 +44,8 @@ describe("migrateDatabase", () => {
     expect(execAsync.mock.calls[6][0]).toContain(
       "ADD COLUMN hide_border INTEGER NOT NULL DEFAULT 0",
     );
-    expect(execAsync.mock.calls[6][0]).toContain(
+    expect(execAsync.mock.calls[7][0]).toContain("ALTER TABLE sounds");
+    expect(execAsync.mock.calls[7][0]).toContain(
       `PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`,
     );
   });
@@ -62,5 +63,27 @@ describe("migrateDatabase", () => {
       "newer than supported",
     );
     expect(database.withTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it("adds sound border visibility when upgrading schema version 6", async () => {
+    const execAsync = jest.fn().mockResolvedValue(undefined);
+    const database = {
+      execAsync,
+      getFirstAsync: jest.fn().mockResolvedValue({ user_version: 6 }),
+      withTransactionAsync: jest.fn(async (task: () => Promise<void>) =>
+        task(),
+      ),
+    };
+
+    await migrateDatabase(database);
+
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(execAsync).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("ALTER TABLE sounds"),
+    );
+    expect(execAsync.mock.calls[1][0]).toContain(
+      `PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`,
+    );
   });
 });
