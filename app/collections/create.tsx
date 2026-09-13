@@ -86,7 +86,7 @@ export default function CreateCollectionRoute() {
         />
         <Text style={[styles.label, { color: colors.text }]}>TYPE</Text>
         <View accessibilityRole="radiogroup" style={styles.roleControl}>
-          {(["directory", "randomizer"] as const).map((option) => (
+          {(["directory", "randomizer"] as const).map((option, index) => (
             <Pressable
               accessibilityLabel={`${option} collection`}
               accessibilityRole="radio"
@@ -96,7 +96,8 @@ export default function CreateCollectionRoute() {
               style={[
                 styles.roleOption,
                 { borderColor: colors.border, backgroundColor: colors.surface },
-                role === option && { backgroundColor: colors.playing },
+                index > 0 && styles.roleOptionJoined,
+                role === option && { backgroundColor: colors.selected },
               ]}
             >
               <MaterialIcons
@@ -180,6 +181,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderWidth: 2,
   },
+  roleOptionJoined: { borderLeftWidth: 0 },
   roleLabel: { fontFamily: "Courier", fontSize: 13, fontWeight: "700" },
   error: { fontSize: 15 },
   saveButton: {

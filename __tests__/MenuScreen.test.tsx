@@ -56,6 +56,15 @@ describe("MenuScreen", () => {
       width: 132,
       height: 132,
     });
+    expect(screen.getByRole("radio", { name: "system theme" })).toHaveStyle({
+      borderWidth: 2,
+    });
+    expect(screen.getByRole("radio", { name: "light theme" })).toHaveStyle({
+      borderLeftWidth: 0,
+    });
+    expect(screen.getByRole("radio", { name: "dark theme" })).toHaveStyle({
+      borderLeftWidth: 0,
+    });
     await fireEvent.press(
       screen.getByRole("button", { name: "Increase button size" }),
     );

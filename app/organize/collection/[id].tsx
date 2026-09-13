@@ -29,6 +29,7 @@ export default function OrganizeCollectionRoute() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingRole, setIsChangingRole] = useState(false);
   const [isSavingBorder, setIsSavingBorder] = useState(false);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function OrganizeCollectionRoute() {
       collection.role === "directory" ? "randomizer" : "directory";
     const previousRole = collection.role;
     setCollection({ ...collection, role: nextRole });
-    setIsSaving(true);
+    setIsChangingRole(true);
     setError(null);
     try {
       await collections.update(collection.id, collection.name, nextRole);
@@ -81,7 +82,7 @@ export default function OrganizeCollectionRoute() {
         saveError instanceof Error ? saveError.message : String(saveError),
       );
     } finally {
-      setIsSaving(false);
+      setIsChangingRole(false);
     }
   };
 
@@ -275,9 +276,9 @@ export default function OrganizeCollectionRoute() {
                   accessibilityLabel="Change collection role"
                   accessibilityRole="button"
                   accessibilityState={{
-                    disabled: isSaving || collection.id === "main",
+                    disabled: isChangingRole || collection.id === "main",
                   }}
-                  disabled={isSaving || collection.id === "main"}
+                  disabled={isChangingRole || collection.id === "main"}
                   onPress={() => void changeRole()}
                   style={({ pressed }) => [
                     styles.squareButton,
@@ -287,7 +288,8 @@ export default function OrganizeCollectionRoute() {
                       shadowColor: colors.shadow,
                     },
                     pressed && styles.squareButtonPressed,
-                    (isSaving || collection.id === "main") && styles.disabled,
+                    (isChangingRole || collection.id === "main") &&
+                      styles.disabled,
                   ]}
                 >
                   <MaterialIcons
@@ -308,9 +310,9 @@ export default function OrganizeCollectionRoute() {
                   accessibilityLabel="Change collection parent"
                   accessibilityRole="button"
                   accessibilityState={{
-                    disabled: isSaving || !collection.parentId,
+                    disabled: !collection.parentId,
                   }}
-                  disabled={isSaving || !collection.parentId}
+                  disabled={!collection.parentId}
                   onPress={() =>
                     router.push(
                       `/organize/collection/${collection.id}/parent` as Href,
@@ -324,7 +326,7 @@ export default function OrganizeCollectionRoute() {
                       shadowColor: colors.shadow,
                     },
                     pressed && styles.squareButtonPressed,
-                    (isSaving || !collection.parentId) && styles.disabled,
+                    !collection.parentId && styles.disabled,
                   ]}
                 >
                   <MaterialIcons
