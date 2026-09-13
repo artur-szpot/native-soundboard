@@ -151,7 +151,7 @@ export default function MenuScreen() {
             accessibilityRole="radiogroup"
             style={styles.themeControl}
           >
-            {THEME_OPTIONS.map((preference) => (
+            {THEME_OPTIONS.map((preference, index) => (
               <Pressable
                 accessibilityLabel={`${preference} theme`}
                 accessibilityRole="radio"
@@ -164,8 +164,9 @@ export default function MenuScreen() {
                     borderColor: colors.border,
                     backgroundColor: colors.surface,
                   },
+                  index > 0 && styles.themeOptionJoined,
                   themePreference === preference && {
-                    backgroundColor: colors.playing,
+                    backgroundColor: colors.selected,
                   },
                   pressed && styles.pressed,
                 ]}
@@ -294,6 +295,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 2,
+  },
+  themeOptionJoined: {
+    borderLeftWidth: 0,
   },
   themeLabel: {
     fontFamily: "Courier",

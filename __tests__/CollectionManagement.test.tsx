@@ -158,6 +158,13 @@ describe("collection management routes", () => {
     mockParams = { parentId: "main" };
     const screen = await render(<CreateCollectionRoute />);
 
+    expect(
+      screen.getByRole("radio", { name: "directory collection" }),
+    ).toHaveStyle({ borderWidth: 2 });
+    expect(
+      screen.getByRole("radio", { name: "randomizer collection" }),
+    ).toHaveStyle({ borderLeftWidth: 0 });
+
     await fireEvent.changeText(
       screen.getByLabelText("Collection name"),
       "My Mix",
@@ -351,6 +358,33 @@ describe("collection management routes", () => {
       "shuffle",
     );
     expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps unrelated collection actions stable while changing the role", async () => {
+    let finishUpdate: (() => void) | undefined;
+    mockUpdateCollection.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    mockParams = { id: "favorites" };
+    const screen = await render(<OrganizeCollectionRoute />);
+
+    const roleButton = await screen.findByRole("button", {
+      name: "Change collection role",
+    });
+    const parentButton = screen.getByRole("button", {
+      name: "Change collection parent",
+    });
+    await fireEvent.press(roleButton);
+
+    expect(roleButton).toBeDisabled();
+    expect(parentButton).toBeEnabled();
+    expect(parentButton).not.toHaveStyle({ opacity: 0.42 });
+
+    finishUpdate?.();
+    await waitFor(() => expect(roleButton).toBeEnabled());
   });
 
   it("saves a changed collection name from the check button", async () => {
