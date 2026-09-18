@@ -18,7 +18,12 @@ import {
     BUILT_IN_ICONS,
     materialIconReference,
 } from "../src/icons/iconReferences";
-import { imageMediaService } from "../src/media/ImageMediaService";
+import { pickDirectoryMediaFiles } from "../src/media/DirectoryMediaPicker";
+import {
+    imageMediaService,
+    isSupportedImageFilename,
+    type PickedImage,
+} from "../src/media/ImageMediaService";
 import { useRepositories } from "../src/repositories/RepositoryProvider";
 import { useTheme } from "../src/theme/ThemeProvider";
 
@@ -35,6 +40,7 @@ export default function ImagePickerScreen() {
   const [currentIconUri, setCurrentIconUri] = useState<string | null>(null);
   const [importedImages, setImportedImages] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
   const [isSaving, setIsSaving] = useState(true);
   const fallback = kind === "collection" ? "folder" : "play-arrow";
 
@@ -81,26 +87,55 @@ export default function ImagePickerScreen() {
     }
   };
 
-  const importImage = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: Platform.OS !== "android",
-      multiple: false,
-      type: IMAGE_TYPES,
-    });
-    if (result.canceled) return;
+  const importImageBatch = async (assets: readonly PickedImage[]) => {
+    const failures: string[] = [];
+    for (const asset of assets) {
+      try {
+        await imageMediaService.import(asset);
+      } catch (importError: unknown) {
+        failures.push(
+          `${asset.name}: ${
+            importError instanceof Error
+              ? importError.message
+              : String(importError)
+          }`,
+        );
+      }
+    }
+    setImportedImages(imageMediaService.list());
+    if (failures.length > 0) setError(failures.join("\n"));
+  };
 
-    setIsSaving(true);
+  const importImage = async () => {
     setError(null);
-    let importedPath: string | null = null;
-    let persisted = false;
     try {
-      importedPath = await imageMediaService.import(result.assets[0]);
-      await updateIcon(importedPath);
-      persisted = true;
-      refresh();
-      router.back();
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: Platform.OS !== "android",
+        multiple: true,
+        type: IMAGE_TYPES,
+      });
+      if (result.canceled) return;
+
+      setIsSaving(true);
+      if (result.assets.length === 1) {
+        let importedPath: string | null = null;
+        let persisted = false;
+        try {
+          importedPath = await imageMediaService.import(result.assets[0]);
+          await updateIcon(importedPath);
+          persisted = true;
+          refresh();
+          router.back();
+        } catch (importError: unknown) {
+          if (importedPath && !persisted)
+            imageMediaService.remove(importedPath);
+          throw importError;
+        }
+        return;
+      }
+
+      await importImageBatch(result.assets);
     } catch (importError: unknown) {
-      if (importedPath && !persisted) imageMediaService.remove(importedPath);
       setError(
         importError instanceof Error
           ? importError.message
@@ -110,6 +145,33 @@ export default function ImagePickerScreen() {
       setIsSaving(false);
     }
   };
+
+  const importImageDirectory = async () => {
+    setIsLoadingDirectory(true);
+    try {
+      const assets = await pickDirectoryMediaFiles(isSupportedImageFilename);
+      if (assets === null) return;
+      if (assets.length === 0) {
+        setError("No supported images were found in that directory.");
+        return;
+      }
+
+      setError(null);
+      setIsSaving(true);
+      await importImageBatch(assets);
+    } catch (importError: unknown) {
+      setError(
+        importError instanceof Error
+          ? importError.message
+          : String(importError),
+      );
+    } finally {
+      setIsSaving(false);
+      setIsLoadingDirectory(false);
+    }
+  };
+
+  const isBusy = isSaving || isLoadingDirectory;
 
   return (
     <SafeAreaView
@@ -143,7 +205,7 @@ export default function ImagePickerScreen() {
           {error}
         </Text>
       ) : null}
-      {isSaving ? (
+      {isSaving && !isLoadingDirectory ? (
         <ActivityIndicator
           accessibilityLabel="Saving icon"
           color={colors.accent}
@@ -159,7 +221,7 @@ export default function ImagePickerScreen() {
                 accessibilityLabel={icon.label}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
-                disabled={isSaving}
+                disabled={isBusy}
                 key={icon.name}
                 onPress={() => void saveIcon(reference)}
                 style={[
@@ -188,7 +250,7 @@ export default function ImagePickerScreen() {
               accessibilityLabel={`Imported image ${index + 1}`}
               accessibilityRole="button"
               accessibilityState={{ selected: currentIconUri === iconUri }}
-              disabled={isSaving}
+              disabled={isBusy}
               key={iconUri}
               onPress={() => void saveIcon(iconUri)}
               style={[
@@ -214,14 +276,14 @@ export default function ImagePickerScreen() {
           accessibilityRole="button"
           accessibilityState={{
             selected: currentIconUri === null,
-            disabled: isSaving || currentIconUri === null,
+            disabled: isBusy || currentIconUri === null,
           }}
-          disabled={isSaving || currentIconUri === null}
+          disabled={isBusy || currentIconUri === null}
           onPress={() => void saveIcon(null)}
           style={[
             styles.defaultButton,
             { borderColor: colors.border, backgroundColor: colors.surface },
-            isSaving && styles.disabled,
+            isBusy && styles.disabled,
           ]}
         >
           <MaterialIcons
@@ -236,12 +298,12 @@ export default function ImagePickerScreen() {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          disabled={isSaving}
+          disabled={isBusy}
           onPress={() => void importImage()}
           style={[
             styles.importButton,
             { borderColor: colors.border, backgroundColor: colors.accent },
-            isSaving && styles.disabled,
+            isBusy && styles.disabled,
           ]}
         >
           <MaterialIcons
@@ -253,6 +315,45 @@ export default function ImagePickerScreen() {
             IMPORT IMAGE
           </Text>
         </Pressable>
+        <Pressable
+          accessibilityLabel="Choose image directory"
+          accessibilityRole="button"
+          disabled={isBusy}
+          onPress={() => void importImageDirectory()}
+          style={[
+            styles.importButton,
+            { borderColor: colors.border, backgroundColor: colors.accent },
+            isBusy && styles.disabled,
+          ]}
+        >
+          <MaterialIcons color={colors.text} name="folder" size={24} />
+          <Text style={[styles.importLabel, { color: colors.text }]}>
+            IMPORT DIRECTORY
+          </Text>
+        </Pressable>
+        <Text style={[styles.help, { color: colors.mutedText }]}>
+          PNG, JPEG, or WebP. Maximum 5 MB and 4096 by 4096 pixels each.
+        </Text>
+        {isLoadingDirectory ? (
+          <View
+            style={[
+              styles.loadingStatus,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.accent,
+              },
+            ]}
+          >
+            <ActivityIndicator
+              accessibilityLabel="Loading image directory"
+              color={colors.accent}
+              size="large"
+            />
+            <Text style={[styles.loadingLabel, { color: colors.text }]}>
+              LOADING FILES...
+            </Text>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -301,6 +402,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
   },
+  help: { fontSize: 14 },
+  loadingStatus: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  loadingLabel: { fontFamily: "Courier", fontSize: 16, fontWeight: "700" },
   defaultButton: {
     width: "100%",
     minHeight: 54,

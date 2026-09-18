@@ -10,6 +10,12 @@ export const MAX_IMAGE_DIMENSION = 4096;
 const STORAGE_RESERVE_BYTES = 5 * 1024 * 1024;
 const supportedExtensions = new Set([".jpeg", ".jpg", ".png", ".webp"]);
 
+export function isSupportedImageFilename(filename: string): boolean {
+  return supportedExtensions.has(
+    filename.slice(filename.lastIndexOf(".")).toLowerCase(),
+  );
+}
+
 export interface PickedImage {
   mimeType?: string;
   name: string;
@@ -19,7 +25,7 @@ export interface PickedImage {
 
 export function validatePickedImage(asset: PickedImage, size: number): string {
   const extension = asset.name.slice(asset.name.lastIndexOf(".")).toLowerCase();
-  if (!supportedExtensions.has(extension)) {
+  if (!isSupportedImageFilename(asset.name)) {
     throw new Error("Choose a PNG, JPEG, or WebP image.");
   }
   if (asset.mimeType && !asset.mimeType.startsWith("image/")) {
