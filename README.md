@@ -17,7 +17,10 @@ The application currently provides:
 - Sound and collection detail screens with rename, role, replacement, and
   confirmed deletion workflows.
 - Built-in icon selection and reusable PNG, JPEG, or WebP image imports for
-  sounds and collections, stored in app-managed document storage.
+  sounds and collections, stored in app-managed document storage. Selecting
+  one image assigns it immediately; selecting multiple images adds them to the
+  reusable image library for later selection. A selected directory is searched
+  recursively and all supported images are added to that library.
 - An About screen with source, license, version, and user-media responsibility
   information.
 - Final native app icons and a system-aware launch splash screen.
@@ -26,8 +29,10 @@ The application currently provides:
 - Collection parent changes use a dedicated picker screen that excludes the
   collection and its descendants, indents options by tree depth, and disables
   the current parent.
-- Local MP3, M4A, AAC, WAV, and OGG import through the system document picker,
-  with 10 MB and one-minute limits and app-managed storage.
+- Single- and multi-file MP3, M4A, AAC, WAV, and OGG import through the system
+  document picker, with editable names, 10 MB and one-minute per-file limits,
+  and app-managed storage. Directories can also be searched recursively for
+  supported audio files before reviewing and renaming them.
 - Descendant-aware randomizers that deduplicate sounds, avoid recent repeats,
   share the global non-overlapping playback coordinator, and open their
   collection view when held.
@@ -166,8 +171,9 @@ recorded in [assets/sounds/README.md](assets/sounds/README.md).
 Local audio imports are copied into app-managed document storage. Each import
 gets an independent managed copy and retains its original filename in metadata.
 The app accepts MP3, M4A, AAC, WAV, and OGG files up to 10 MB and one minute,
-subject to decoding support on the device. The app does not transmit that media
-itself unless the user exports it, although
+subject to decoding support on the device. Files can be selected individually,
+in a multi-selection, or recursively from a user-selected directory. The app
+does not transmit that media itself unless the user exports it, although
 the operating system may include it in backup or device transfer as described
 above. Users are responsible for ensuring they have the right to import, store,
 and play their sound and image files. Bundled starter media must be original,

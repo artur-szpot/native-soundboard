@@ -12,6 +12,12 @@ const STORAGE_RESERVE_BYTES = 5 * 1024 * 1024;
 
 const supportedExtensions = new Set([".aac", ".m4a", ".mp3", ".ogg", ".wav"]);
 
+export function isSupportedAudioFilename(filename: string): boolean {
+  return supportedExtensions.has(
+    filename.slice(filename.lastIndexOf(".")).toLowerCase(),
+  );
+}
+
 export interface PickedAudio {
   mimeType?: string;
   name: string;
@@ -26,7 +32,7 @@ export interface ImportedAudio {
 
 export function validatePickedAudio(asset: PickedAudio, size: number): string {
   const extension = asset.name.slice(asset.name.lastIndexOf(".")).toLowerCase();
-  if (!supportedExtensions.has(extension)) {
+  if (!isSupportedAudioFilename(asset.name)) {
     throw new Error("Choose an MP3, M4A, AAC, WAV, or OGG audio file.");
   }
   if (
@@ -105,9 +111,10 @@ async function validateDecodableAudio(uri: string): Promise<void> {
 
 export class AudioMediaService {
   async import(asset: PickedAudio): Promise<ImportedAudio> {
-    const info = asset.size === undefined && asset.uri.startsWith("file://")
-      ? new File(asset.uri).info()
-      : null;
+    const info =
+      asset.size === undefined && asset.uri.startsWith("file://")
+        ? new File(asset.uri).info()
+        : null;
     const size = asset.size ?? info?.size ?? 0;
     const extension = validatePickedAudio(asset, size);
     if (info && !info.exists) {
