@@ -66,6 +66,12 @@ descendants so stored relationships cannot become cyclic.
 ## Playback Rules
 
 - Tapping a sound plays it.
+- While a sound plays, its square keeps its normal artwork and begins dimmed.
+  A radial reveal sweeps clockwise from 12 o'clock to show playback progress,
+  leaving the square fully undimmed at completion. When a randomizer starts
+  the sound, its square shows the same reveal for the selected sound's
+  duration. Reduced-motion mode uses discrete progress updates instead of
+  continuous interpolation.
 - Repeated taps while that sound is playing are ignored by default.
 - A sound can be played again from the beginning after it finishes.
 - An empty randomizer is disabled and communicates why it cannot play.
@@ -285,7 +291,7 @@ repository.
 
 - One bundled chime.
 - One centered square play button.
-- Loading, playing, pressed, and disabled feedback.
+- Loading, pressed, and disabled feedback, plus radial playback progress.
 - Repeated taps do not overlap playback.
 - Portrait and landscape support.
 

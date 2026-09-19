@@ -1,4 +1,9 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+    fireEvent,
+    render,
+    waitFor,
+    within,
+} from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import SoundboardScreen from "../app/index";
@@ -20,6 +25,9 @@ const mockPreferences = {
   themePreference: "system" as const,
 };
 let mockActiveSoundId: string | null = null;
+let mockActiveRandomizerId: string | null = null;
+let mockPlaybackDuration = 0;
+let mockPlaybackProgress = 0;
 const mockMain: Collection = {
   id: "main",
   name: "Main",
@@ -106,9 +114,12 @@ jest.mock("../src/settings/PreferencesProvider", () => ({
 }));
 jest.mock("../src/playback/PlaybackProvider", () => ({
   usePlayback: () => ({
+    activeRandomizerId: mockActiveRandomizerId,
     activeSoundId: mockActiveSoundId,
     error: null,
     isBusy: mockActiveSoundId !== null,
+    playbackDuration: mockPlaybackDuration,
+    playbackProgress: mockPlaybackProgress,
     play: mockPlay,
     playRandomizer: mockPlayRandomizer,
   }),
@@ -154,7 +165,10 @@ function renderCollection(collectionId: string) {
 describe("SoundboardScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockActiveRandomizerId = null;
     mockActiveSoundId = null;
+    mockPlaybackDuration = 0;
+    mockPlaybackProgress = 0;
     mockCurrentCollection = mockMain;
     mockAncestors = [];
     mockChildren = [mockFavorites, mockSurprise];
@@ -178,7 +192,10 @@ describe("SoundboardScreen", () => {
   });
 
   it("disables every sound button while one sound is playing", async () => {
+    jest.useFakeTimers();
     mockActiveSoundId = "bloom";
+    mockPlaybackDuration = 10;
+    mockPlaybackProgress = 0.4;
     const screen = await renderScreen();
 
     await waitFor(() =>
@@ -189,6 +206,23 @@ describe("SoundboardScreen", () => {
     })) {
       expect(button).toBeDisabled();
     }
+    expect(screen.getByTestId("sound-icon-bloom")).toHaveProp(
+      "name",
+      "play-arrow",
+    );
+    expect(screen.getByTestId("playback-progress-overlay").parent).toHaveStyle({
+      height: 126,
+      left: 0,
+      position: "absolute",
+      top: 0,
+      width: 126,
+    });
+    expect(screen.getByRole("button", { name: "Play Bloom" })).toHaveProp(
+      "accessibilityValue",
+      { max: 100, min: 0, now: 40, text: "40% played" },
+    );
+    screen.unmount();
+    jest.useRealTimers();
   });
 
   it("opens the menu from the header", async () => {
@@ -251,6 +285,37 @@ describe("SoundboardScreen", () => {
       "surprise-me",
       expect.arrayContaining([expect.objectContaining({ id: "bloom" })]),
     );
+  });
+
+  it("shows sound progress on the randomizer that started playback", async () => {
+    jest.useFakeTimers();
+    mockActiveRandomizerId = "surprise-me";
+    mockActiveSoundId = "bloom";
+    mockPlaybackDuration = 8;
+    mockPlaybackProgress = 0.25;
+    const screen = await renderScreen();
+
+    const randomizer = await screen.findByRole("button", {
+      name: "Play randomizer Surprise Me",
+    });
+
+    expect(randomizer).toHaveStyle({ backgroundColor: "#F3B63F" });
+    expect(randomizer).not.toHaveStyle({ opacity: 0.42 });
+    expect(randomizer).toHaveProp("accessibilityValue", {
+      max: 100,
+      min: 0,
+      now: 25,
+      text: "25% played",
+    });
+    expect(screen.getByTestId("randomizer-icon-surprise-me")).toHaveProp(
+      "name",
+      "shuffle",
+    );
+    expect(
+      within(randomizer).getByTestId("playback-progress-overlay"),
+    ).toBeOnTheScreen();
+    screen.unmount();
+    jest.useRealTimers();
   });
 
   it("keeps image tile geometry while visually hiding its border", async () => {
