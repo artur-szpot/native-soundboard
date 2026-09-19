@@ -12,7 +12,9 @@ const mockPlayer = {
 };
 const mockSetAudioModeAsync = jest.fn().mockResolvedValue(undefined);
 let mockStatus = {
+  currentTime: 0,
   didJustFinish: false,
+  duration: 0,
   error: null as string | null,
   isBuffering: false,
   playing: false,
@@ -25,11 +27,19 @@ jest.mock("expo-audio", () => ({
 }));
 
 function Harness() {
-  const { activeSoundId, play, playRandomizer } = usePlayback();
+  const {
+    activeRandomizerId,
+    activeSoundId,
+    playbackProgress,
+    play,
+    playRandomizer,
+  } = usePlayback();
 
   return (
     <View>
       <Text>{activeSoundId ?? "idle"}</Text>
+      <Text testID="active-randomizer">{activeRandomizerId ?? "none"}</Text>
+      <Text testID="playback-progress">{playbackProgress}</Text>
       <Pressable accessibilityRole="button" onPress={() => play("one", 1)}>
         <Text>One</Text>
       </Pressable>
@@ -55,7 +65,9 @@ describe("PlaybackProvider", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockStatus = {
+      currentTime: 0,
       didJustFinish: false,
+      duration: 0,
       error: null,
       isBuffering: false,
       playing: false,
@@ -93,6 +105,59 @@ describe("PlaybackProvider", () => {
     );
   });
 
+  it("reports clamped progress only after the active sound starts", async () => {
+    const screen = await render(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "One" }));
+    mockStatus = {
+      ...mockStatus,
+      currentTime: 2,
+      duration: 8,
+      playing: true,
+    };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+    expect(screen.getByTestId("playback-progress")).toHaveTextContent("0.25");
+
+    mockStatus = { ...mockStatus, currentTime: 12 };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+    expect(screen.getByTestId("playback-progress")).toHaveTextContent("1");
+  });
+
+  it("reports zero for unavailable timing data", async () => {
+    const screen = await render(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "One" }));
+    mockStatus = {
+      ...mockStatus,
+      currentTime: 2,
+      duration: 0,
+      playing: true,
+    };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    expect(screen.getByTestId("playback-progress")).toHaveTextContent("0");
+  });
+
   it("plays randomizer selections through the same global lock", async () => {
     const screen = await render(
       <PlaybackProvider>
@@ -105,6 +170,31 @@ describe("PlaybackProvider", () => {
 
     expect(mockPlayer.replace).toHaveBeenCalledTimes(1);
     expect(mockPlayer.play).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("active-randomizer")).toHaveTextContent("mix");
+  });
+
+  it("clears the active randomizer when its selected sound finishes", async () => {
+    const screen = await render(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "Random" }));
+    mockStatus = { ...mockStatus, playing: true };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+    mockStatus = { ...mockStatus, didJustFinish: true, playing: false };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    expect(screen.getByTestId("active-randomizer")).toHaveTextContent("none");
   });
 
   it("accepts another request after playback finishes", async () => {

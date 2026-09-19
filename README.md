@@ -39,7 +39,9 @@ The application currently provides:
 - Fixed-square controls with Material play icons and accessible labels.
 - A dedicated menu screen for button size, theme, and Main sound filtering,
   including a live square-button size preview.
-- Loading, pressed, playing, error, and disabled feedback.
+- Loading, pressed, error, and disabled feedback, plus a clockwise radial
+  reveal that shows playback progress on the active sound and its originating
+  randomizer while preserving their artwork.
 - Shared playback coordination that prevents sounds from overlapping.
 - Portrait and landscape support.
 - An Expo Router navigation shell with safe-area handling and a startup error
@@ -85,6 +87,7 @@ See the [product plan](plan/p0-general-plans.md) for planned screens, data model
 - `expo-asset` for bundled asset support.
 - `expo-router` for native navigation.
 - `expo-sqlite` for versioned local metadata storage.
+- `react-native-svg` for the active sound's radial playback reveal.
 - `react-native-safe-area-context` for safe-area layout.
 - Expo-compatible Material Icons for fallback sound graphics.
 - `jest-expo` and React Native Testing Library for automated tests.

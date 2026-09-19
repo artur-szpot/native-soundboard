@@ -13,6 +13,7 @@ import type { ButtonSize } from "../settings/PreferencesProvider";
 import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
 import { IconArtwork } from "./IconArtwork";
+import { PlaybackProgressOverlay } from "./PlaybackProgressOverlay";
 
 interface CollectionButtonProps {
   collection: Collection;
@@ -29,9 +30,16 @@ export function CollectionButton({
   playableSounds,
   size,
 }: CollectionButtonProps) {
-  const { isBusy, playRandomizer } = usePlayback();
+  const {
+    activeRandomizerId,
+    isBusy,
+    playbackDuration,
+    playbackProgress,
+    playRandomizer,
+  } = usePlayback();
   const { colors } = useTheme();
   const isRandomizer = collection.role === "randomizer";
+  const isPlayingRandomizer = activeRandomizerId === collection.id;
   const hasImage = isImageIconReference(collection.iconUri);
   const isDisabled = isRandomizer && (isBusy || playableSounds.length === 0);
   const accessibilityLabel = isRandomizer
@@ -69,6 +77,17 @@ export function CollectionButton({
         }
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
+        accessibilityState={{ disabled: isDisabled }}
+        accessibilityValue={
+          isPlayingRandomizer
+            ? {
+                max: 100,
+                min: 0,
+                now: Math.round(playbackProgress * 100),
+                text: `${Math.round(playbackProgress * 100)}% played`,
+              }
+            : undefined
+        }
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (event.nativeEvent.actionName === "longpress") {
             handleLongPress();
@@ -81,7 +100,11 @@ export function CollectionButton({
           {
             width: size,
             height: size,
-            backgroundColor: hasImage ? colors.background : colors.collection,
+            backgroundColor: isPlayingRandomizer
+              ? colors.playing
+              : hasImage
+                ? colors.background
+                : colors.collection,
             borderColor:
               hasImage && collection.hideBorder
                 ? colors.background
@@ -89,7 +112,7 @@ export function CollectionButton({
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
-          isDisabled && styles.buttonDisabled,
+          isDisabled && !isPlayingRandomizer && styles.buttonDisabled,
         ]}
       >
         <IconArtwork
@@ -103,6 +126,13 @@ export function CollectionButton({
               : `directory-icon-${collection.id}`
           }
         />
+        {isPlayingRandomizer ? (
+          <PlaybackProgressOverlay
+            duration={playbackDuration}
+            progress={playbackProgress}
+            size={size - 6}
+          />
+        ) : null}
       </Pressable>
       <Text
         numberOfLines={2}

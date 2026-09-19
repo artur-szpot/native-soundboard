@@ -1,4 +1,3 @@
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
     type AccessibilityActionEvent,
     Pressable,
@@ -13,6 +12,7 @@ import type { ButtonSize } from "../settings/PreferencesProvider";
 import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
 import { IconArtwork } from "./IconArtwork";
+import { PlaybackProgressOverlay } from "./PlaybackProgressOverlay";
 
 interface SoundButtonProps {
   onLongPress?: () => void;
@@ -21,7 +21,8 @@ interface SoundButtonProps {
 }
 
 export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
-  const { activeSoundId, isBusy, play } = usePlayback();
+  const { activeSoundId, isBusy, playbackDuration, playbackProgress, play } =
+    usePlayback();
   const { colors } = useTheme();
   const isPlaying = activeSoundId === sound.id;
   const hasImage = isImageIconReference(sound.iconUri ?? null);
@@ -37,6 +38,16 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
         accessibilityLabel={`Play ${sound.name}`}
         accessibilityRole="button"
         accessibilityState={{ disabled: isBusy }}
+        accessibilityValue={
+          isPlaying
+            ? {
+                max: 100,
+                min: 0,
+                now: Math.round(playbackProgress * 100),
+                text: `${Math.round(playbackProgress * 100)}% played`,
+              }
+            : undefined
+        }
         disabled={isBusy}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (event.nativeEvent.actionName === "longpress") {
@@ -63,20 +74,20 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
           isBusy && !isPlaying && styles.buttonDisabled,
         ]}
       >
+        <IconArtwork
+          color={colors.text}
+          fallback="play-arrow"
+          iconUri={sound.iconUri ?? null}
+          size={Math.round(size * 0.72)}
+          testID={`sound-icon-${sound.id}`}
+        />
         {isPlaying ? (
-          <MaterialIcons
-            color={colors.text}
-            name="volume-up"
-            size={Math.round(size * 0.46)}
+          <PlaybackProgressOverlay
+            duration={playbackDuration}
+            progress={playbackProgress}
+            size={size - 6}
           />
-        ) : (
-          <IconArtwork
-            color={colors.text}
-            fallback="play-arrow"
-            iconUri={sound.iconUri ?? null}
-            size={Math.round(size * 0.72)}
-          />
-        )}
+        ) : null}
       </Pressable>
       <Text
         numberOfLines={2}
