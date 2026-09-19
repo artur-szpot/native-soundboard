@@ -1,7 +1,12 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as DocumentPicker from "expo-document-picker";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import {
+    Stack,
+    useFocusEffect,
+    useLocalSearchParams,
+    useRouter,
+} from "expo-router";
+import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Platform,
@@ -44,26 +49,28 @@ export default function ImagePickerScreen() {
   const [isSaving, setIsSaving] = useState(true);
   const fallback = kind === "collection" ? "folder" : "play-arrow";
 
-  useEffect(() => {
-    const repository = kind === "collection" ? collections : sounds;
-    repository
-      .getById(id)
-      .then((item) => {
-        if (!item) {
-          throw new Error(
-            `${kind === "collection" ? "Collection" : "Sound"} not found.`,
-          );
-        }
-        setCurrentIconUri(item.iconUri);
-        setImportedImages(imageMediaService.list());
-      })
-      .catch((loadError: unknown) =>
-        setError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        ),
-      )
-      .finally(() => setIsSaving(false));
-  }, [collections, id, kind, sounds]);
+  useFocusEffect(
+    useCallback(() => {
+      const repository = kind === "collection" ? collections : sounds;
+      repository
+        .getById(id)
+        .then((item) => {
+          if (!item) {
+            throw new Error(
+              `${kind === "collection" ? "Collection" : "Sound"} not found.`,
+            );
+          }
+          setCurrentIconUri(item.iconUri);
+          setImportedImages(imageMediaService.list());
+        })
+        .catch((loadError: unknown) =>
+          setError(
+            loadError instanceof Error ? loadError.message : String(loadError),
+          ),
+        )
+        .finally(() => setIsSaving(false));
+    }, [collections, id, kind, sounds]),
+  );
 
   const updateIcon = async (iconUri: string | null) => {
     if (kind === "collection") await collections.updateIcon(id, iconUri);
@@ -334,6 +341,23 @@ export default function ImagePickerScreen() {
         <Text style={[styles.help, { color: colors.mutedText }]}>
           PNG, JPEG, or WebP. Maximum 5 MB and 4096 by 4096 pixels each.
         </Text>
+        <Pressable
+          accessibilityLabel="Delete images"
+          accessibilityRole="button"
+          disabled={isBusy}
+          onPress={() => router.push("/images-delete")}
+          style={[
+            styles.importButton,
+            styles.deleteButton,
+            { borderColor: colors.border },
+            isBusy && styles.disabled,
+          ]}
+        >
+          <MaterialIcons color={colors.text} name="delete" size={24} />
+          <Text style={[styles.importLabel, { color: colors.text }]}>
+            DELETE IMAGES
+          </Text>
+        </Pressable>
         {isLoadingDirectory ? (
           <View
             style={[
@@ -403,6 +427,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   help: { fontSize: 14 },
+  deleteButton: { backgroundColor: "#E74E36" },
   loadingStatus: {
     minHeight: 72,
     flexDirection: "row",

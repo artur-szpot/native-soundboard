@@ -3,6 +3,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import ImagePickerScreen from "../app/images";
 
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 const mockRefresh = jest.fn();
 const mockUpdateIcon = jest.fn();
 const mockPick = jest.fn();
@@ -26,8 +27,12 @@ jest.mock("expo-document-picker", () => ({
 }));
 jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
+  useFocusEffect: (effect: () => void) => {
+    const { useEffect } = require("react");
+    useEffect(effect, [effect]);
+  },
   useLocalSearchParams: () => ({ id: "bloom", kind: "sound" }),
-  useRouter: () => ({ back: mockBack }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
 }));
 jest.mock("../src/components/IconArtwork", () => ({
   IconArtwork: "IconArtwork",
@@ -77,7 +82,7 @@ describe("ImagePickerScreen", () => {
     mockPickDirectory.mockResolvedValue(null);
   });
 
-  it("shows Default, Import Image, then a yellow Import Directory", async () => {
+  it("shows Default, Import Image, Import Directory, then a red Delete Images", async () => {
     const screen = await render(<ImagePickerScreen />);
 
     const defaultButton = await screen.findByRole("button", {
@@ -97,10 +102,27 @@ describe("ImagePickerScreen", () => {
     expect(screen.getByTestId("default-icon")).toHaveProp("color", "#000");
     expect(screen.getByText("DEFAULT")).toBeOnTheScreen();
     const buttons = screen.getAllByRole("button");
-    expect(buttons.at(-3)).toBe(defaultButton);
-    expect(buttons.at(-2)).toHaveTextContent("IMPORT IMAGE");
-    expect(buttons.at(-1)).toHaveTextContent("IMPORT DIRECTORY");
-    expect(buttons.at(-1)).toHaveStyle({ backgroundColor: "#f00" });
+    expect(buttons.at(-4)).toBe(defaultButton);
+    expect(buttons.at(-3)).toHaveTextContent("IMPORT IMAGE");
+    expect(buttons.at(-2)).toHaveTextContent("IMPORT DIRECTORY");
+    expect(buttons.at(-2)).toHaveStyle({ backgroundColor: "#f00" });
+    expect(buttons.at(-1)).toHaveTextContent("DELETE IMAGES");
+    expect(buttons.at(-1)).toHaveStyle({ backgroundColor: "#E74E36" });
+  });
+
+  it("navigates to the delete images screen", async () => {
+    const screen = await render(<ImagePickerScreen />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Delete images" }),
+      ).toBeEnabled(),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Delete images" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith("/images-delete");
   });
 
   it("uses a red border and red glyph for the selected built-in icon", async () => {
