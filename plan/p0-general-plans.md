@@ -15,6 +15,10 @@ import and sound and collection editing are also implemented.
 Built-in and imported icon selection, final app branding, and the About screen
 are implemented. Metadata export/import and the remaining release work below
 remain planned and must not be treated as implemented behavior.
+Multiselect editing is implemented for sounds and collections. It is scoped to
+the active collection screen and supports bulk icons, memberships, border
+visibility, collection roles, shared-parent changes, and confirmed deletion.
+Bulk renaming, playback, and media replacement remain unsupported.
 
 ## Product Purpose
 

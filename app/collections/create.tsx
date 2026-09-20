@@ -23,14 +23,10 @@ export default function CreateCollectionRoute() {
     setIsSaving(true);
     setError(null);
     try {
-      const collection = await collections.create(name, role, parentId);
+      await collections.create(name, role, parentId);
       refresh();
       router.dismissAll();
-      router.replace(
-        role === "directory"
-          ? collectionHref(collection.id)
-          : collectionHref(parentId),
-      );
+      router.replace(collectionHref(parentId));
     } catch (creationError: unknown) {
       setError(
         creationError instanceof Error

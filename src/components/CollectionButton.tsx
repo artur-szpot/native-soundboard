@@ -1,3 +1,4 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
     type AccessibilityActionEvent,
     Pressable,
@@ -16,17 +17,25 @@ import { IconArtwork } from "./IconArtwork";
 import { PlaybackProgressOverlay } from "./PlaybackProgressOverlay";
 
 interface CollectionButtonProps {
+  accessibilityHint?: string;
   collection: Collection;
+  isSelectionDisabled?: boolean;
+  isSelected?: boolean;
   onLongPress: () => void;
   onOpen: () => void;
+  onSelect?: () => void;
   playableSounds: readonly PlayableSound[];
   size: ButtonSize;
 }
 
 export function CollectionButton({
+  accessibilityHint,
   collection,
+  isSelectionDisabled = false,
+  isSelected = false,
   onLongPress,
   onOpen,
+  onSelect,
   playableSounds,
   size,
 }: CollectionButtonProps) {
@@ -41,13 +50,19 @@ export function CollectionButton({
   const isRandomizer = collection.role === "randomizer";
   const isPlayingRandomizer = activeRandomizerId === collection.id;
   const hasImage = isImageIconReference(collection.iconUri);
-  const isDisabled = isRandomizer && (isBusy || playableSounds.length === 0);
+  const isUnavailableRandomizer =
+    isRandomizer && (isBusy || playableSounds.length === 0);
+  const isDisabled =
+    isSelectionDisabled || (isUnavailableRandomizer && !onSelect);
+  const isPressDisabled = isSelectionDisabled || (isRandomizer && isBusy);
   const accessibilityLabel = isRandomizer
     ? `Play randomizer ${collection.name}`
     : `Open directory ${collection.name}`;
 
   const activate = () => {
-    if (isRandomizer) {
+    if (onSelect) {
+      onSelect();
+    } else if (isRandomizer) {
       if (!isDisabled) {
         playRandomizer(collection.id, playableSounds);
       }
@@ -69,15 +84,16 @@ export function CollectionButton({
           },
         ]}
         accessibilityHint={
-          isRandomizer && playableSounds.length === 0
+          accessibilityHint ??
+          (isRandomizer && playableSounds.length === 0
             ? "This randomizer has no playable sounds. Hold to open the collection"
             : isRandomizer
               ? "Hold to open the collection"
-              : undefined
+              : undefined)
         }
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
-        accessibilityState={{ disabled: isDisabled }}
+        accessibilityState={{ disabled: isDisabled, selected: isSelected }}
         accessibilityValue={
           isPlayingRandomizer
             ? {
@@ -88,12 +104,13 @@ export function CollectionButton({
               }
             : undefined
         }
+        disabled={isPressDisabled}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (event.nativeEvent.actionName === "longpress") {
             handleLongPress();
           }
         }}
-        onLongPress={handleLongPress}
+        onLongPress={onSelect ? undefined : handleLongPress}
         onPress={activate}
         style={({ pressed }) => [
           styles.button,
@@ -105,10 +122,12 @@ export function CollectionButton({
               : hasImage
                 ? colors.background
                 : colors.collection,
-            borderColor:
-              hasImage && collection.hideBorder
+            borderColor: isSelected
+              ? "#E74E36"
+              : hasImage && collection.hideBorder
                 ? colors.background
                 : colors.border,
+            borderWidth: isSelected ? 5 : 3,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
@@ -133,6 +152,11 @@ export function CollectionButton({
             size={size - 6}
           />
         ) : null}
+        {isSelected ? (
+          <View style={styles.selectionMark}>
+            <MaterialIcons color="#E74E36" name="check" size={20} />
+          </View>
+        ) : null}
       </Pressable>
       <Text
         numberOfLines={2}
@@ -155,6 +179,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 6,
+  },
+  selectionMark: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderColor: "#E74E36",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 2,
   },
   buttonPressed: {
     transform: [{ translateX: 4 }, { translateY: 4 }],

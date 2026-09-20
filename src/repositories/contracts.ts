@@ -29,6 +29,20 @@ export interface SoundRepository {
     collectionId: string,
     included: boolean,
   ): Promise<void>;
+  setMembershipForSounds(
+    soundIds: readonly string[],
+    collectionId: string,
+    included: boolean,
+  ): Promise<void>;
+  updateHideBorderForSounds(
+    soundIds: readonly string[],
+    hideBorder: boolean,
+  ): Promise<void>;
+  updateIconForSounds(
+    soundIds: readonly string[],
+    iconUri: string | null,
+  ): Promise<void>;
+  deleteMany(ids: readonly string[]): Promise<readonly Sound[]>;
   updateHideBorder(id: string, hideBorder: boolean): Promise<void>;
   updateIcon(id: string, iconUri: string | null): Promise<void>;
   updateName(id: string, name: string): Promise<void>;
@@ -48,6 +62,20 @@ export interface CollectionRepository {
     parentId: string,
   ): Promise<Collection>;
   reparent(id: string, parentId: string): Promise<void>;
+  reparentMany(ids: readonly string[], parentId: string): Promise<void>;
+  updateHideBorderForCollections(
+    ids: readonly string[],
+    hideBorder: boolean,
+  ): Promise<void>;
+  updateIconForCollections(
+    ids: readonly string[],
+    iconUri: string | null,
+  ): Promise<void>;
+  updateRoleForCollections(
+    ids: readonly string[],
+    role: CollectionRole,
+  ): Promise<void>;
+  deleteMany(ids: readonly string[]): Promise<void>;
   updateHideBorder(id: string, hideBorder: boolean): Promise<void>;
   updateIcon(id: string, iconUri: string | null): Promise<void>;
   update(id: string, name: string, role: CollectionRole): Promise<void>;
