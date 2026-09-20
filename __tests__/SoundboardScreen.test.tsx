@@ -195,7 +195,7 @@ describe("SoundboardScreen", () => {
     expect(mockSounds.listByCollection).toHaveBeenCalledWith("main", true);
   });
 
-  it("disables every sound button while one sound is playing", async () => {
+  it("keeps sound buttons actionable while one sound is playing", async () => {
     jest.useFakeTimers();
     mockActiveSoundId = "bloom";
     mockPlaybackDuration = 10;
@@ -208,7 +208,7 @@ describe("SoundboardScreen", () => {
     for (const button of screen.getAllByRole("button", {
       name: /^Play (Bloom|Click|Rise|Low)$/,
     })) {
-      expect(button).toBeDisabled();
+      expect(button).toBeEnabled();
     }
     expect(screen.getByTestId("sound-icon-bloom")).toHaveProp(
       "name",

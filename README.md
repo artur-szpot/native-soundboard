@@ -42,7 +42,10 @@ The application currently provides:
 - Loading, pressed, error, and disabled feedback, plus a clockwise radial
   reveal that shows playback progress on the active sound and its originating
   randomizer while preserving their artwork.
-- Shared playback coordination that prevents sounds from overlapping.
+- Shared playback coordination that prevents sounds from overlapping. Tapping
+  the active tile stops it when more than 0.5 seconds remain; taps during the
+  final 0.5 seconds queue the most recent playable tile to start after it
+  finishes.
 - Multiselect editing for sounds or collections from any collection screen.
   Selection is scoped to the current screen and clears when multiselect is
   turned off or navigation leaves the collection. Bulk editing supports icons,
