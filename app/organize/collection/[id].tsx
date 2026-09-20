@@ -481,7 +481,10 @@ export default function OrganizeCollectionRoute() {
           {error}
         </Text>
       ) : null}
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView
+        contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+      >
         {collection ? (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
