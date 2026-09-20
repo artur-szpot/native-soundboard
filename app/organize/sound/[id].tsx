@@ -469,7 +469,10 @@ export default function OrganizeSoundRoute() {
           {error}
         </Text>
       ) : null}
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView
+        contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+      >
         {sound ? (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
