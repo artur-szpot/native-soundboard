@@ -7,6 +7,7 @@ import {
 } from "../src/playback/PlaybackProvider";
 
 const mockPlayer = {
+  pause: jest.fn(),
   play: jest.fn(),
   replace: jest.fn(),
 };
@@ -74,7 +75,7 @@ describe("PlaybackProvider", () => {
     };
   });
 
-  it("accepts only one playback request until the active sound finishes", async () => {
+  it("ignores another tile while more than half a second remains", async () => {
     const screen = await render(
       <PlaybackProvider>
         <Harness />
@@ -88,6 +89,66 @@ describe("PlaybackProvider", () => {
     expect(mockPlayer.replace).toHaveBeenCalledWith(1);
     expect(mockPlayer.play).toHaveBeenCalledTimes(1);
     expect(screen.getByText("one")).toBeOnTheScreen();
+  });
+
+  it("stops the active tile when it is tapped with more than half a second left", async () => {
+    const screen = await render(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "One" }));
+    mockStatus = {
+      ...mockStatus,
+      currentTime: 2,
+      duration: 8,
+      playing: true,
+    };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "One" }));
+
+    expect(mockPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("idle")).toBeOnTheScreen();
+  });
+
+  it("queues the most recent request when half a second or less remains", async () => {
+    const screen = await render(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "One" }));
+    mockStatus = {
+      ...mockStatus,
+      currentTime: 7.5,
+      duration: 8,
+      playing: true,
+    };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Two" }));
+
+    expect(mockPlayer.replace).toHaveBeenCalledTimes(1);
+    expect(mockPlayer.pause).not.toHaveBeenCalled();
+
+    mockStatus = { ...mockStatus, didJustFinish: true, playing: false };
+    await screen.rerender(
+      <PlaybackProvider>
+        <Harness />
+      </PlaybackProvider>,
+    );
+
+    expect(mockPlayer.replace).toHaveBeenCalledTimes(2);
+    expect(mockPlayer.replace).toHaveBeenLastCalledWith(2);
   });
 
   it("configures playback for predictable OS interruption behavior", async () => {

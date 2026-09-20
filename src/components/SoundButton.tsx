@@ -34,7 +34,7 @@ export function SoundButton({
   size,
   sound,
 }: SoundButtonProps) {
-  const { activeSoundId, isBusy, playbackDuration, playbackProgress, play } =
+  const { activeSoundId, playbackDuration, playbackProgress, play } =
     usePlayback();
   const { colors } = useTheme();
   const isPlaying = activeSoundId === sound.id;
@@ -52,7 +52,7 @@ export function SoundButton({
         accessibilityHint={accessibilityHint}
         accessibilityRole="button"
         accessibilityState={{
-          disabled: isBusy || isSelectionDisabled,
+          disabled: isSelectionDisabled,
           selected: isSelected,
         }}
         accessibilityValue={
@@ -65,7 +65,7 @@ export function SoundButton({
               }
             : undefined
         }
-        disabled={isBusy || isSelectionDisabled}
+        disabled={isSelectionDisabled}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (event.nativeEvent.actionName === "longpress") {
             onLongPress?.();
@@ -96,9 +96,7 @@ export function SoundButton({
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
-          (isBusy || isSelectionDisabled) &&
-            !isPlaying &&
-            styles.buttonDisabled,
+          isSelectionDisabled && !isPlaying && styles.buttonDisabled,
         ]}
       >
         <IconArtwork

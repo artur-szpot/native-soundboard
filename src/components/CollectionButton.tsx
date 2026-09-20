@@ -41,7 +41,6 @@ export function CollectionButton({
 }: CollectionButtonProps) {
   const {
     activeRandomizerId,
-    isBusy,
     playbackDuration,
     playbackProgress,
     playRandomizer,
@@ -50,11 +49,10 @@ export function CollectionButton({
   const isRandomizer = collection.role === "randomizer";
   const isPlayingRandomizer = activeRandomizerId === collection.id;
   const hasImage = isImageIconReference(collection.iconUri);
-  const isUnavailableRandomizer =
-    isRandomizer && (isBusy || playableSounds.length === 0);
+  const isUnavailableRandomizer = isRandomizer && playableSounds.length === 0;
   const isDisabled =
     isSelectionDisabled || (isUnavailableRandomizer && !onSelect);
-  const isPressDisabled = isSelectionDisabled || (isRandomizer && isBusy);
+  const isPressDisabled = isSelectionDisabled;
   const accessibilityLabel = isRandomizer
     ? `Play randomizer ${collection.name}`
     : `Open directory ${collection.name}`;
