@@ -1,3 +1,4 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
     type AccessibilityActionEvent,
     Pressable,
@@ -15,12 +16,24 @@ import { IconArtwork } from "./IconArtwork";
 import { PlaybackProgressOverlay } from "./PlaybackProgressOverlay";
 
 interface SoundButtonProps {
+  accessibilityHint?: string;
+  isSelectionDisabled?: boolean;
+  isSelected?: boolean;
   onLongPress?: () => void;
+  onSelect?: () => void;
   size: ButtonSize;
   sound: PlayableSound;
 }
 
-export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
+export function SoundButton({
+  accessibilityHint,
+  isSelectionDisabled = false,
+  isSelected = false,
+  onLongPress,
+  onSelect,
+  size,
+  sound,
+}: SoundButtonProps) {
   const { activeSoundId, isBusy, playbackDuration, playbackProgress, play } =
     usePlayback();
   const { colors } = useTheme();
@@ -36,8 +49,12 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
             : undefined
         }
         accessibilityLabel={`Play ${sound.name}`}
+        accessibilityHint={accessibilityHint}
         accessibilityRole="button"
-        accessibilityState={{ disabled: isBusy }}
+        accessibilityState={{
+          disabled: isBusy || isSelectionDisabled,
+          selected: isSelected,
+        }}
         accessibilityValue={
           isPlaying
             ? {
@@ -48,14 +65,18 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
               }
             : undefined
         }
-        disabled={isBusy}
+        disabled={isBusy || isSelectionDisabled}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (event.nativeEvent.actionName === "longpress") {
             onLongPress?.();
           }
         }}
         onLongPress={onLongPress}
-        onPress={() => play(sound.id, sound.source)}
+        onPress={() => {
+          if (isSelectionDisabled) return;
+          if (onSelect) onSelect();
+          else play(sound.id, sound.source);
+        }}
         style={({ pressed }) => [
           styles.button,
           {
@@ -66,12 +87,18 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
               : hasImage
                 ? colors.background
                 : colors.accent,
-            borderColor:
-              hasImage && sound.hideBorder ? colors.background : colors.border,
+            borderColor: isSelected
+              ? "#E74E36"
+              : hasImage && sound.hideBorder
+                ? colors.background
+                : colors.border,
+            borderWidth: isSelected ? 5 : 3,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
-          isBusy && !isPlaying && styles.buttonDisabled,
+          (isBusy || isSelectionDisabled) &&
+            !isPlaying &&
+            styles.buttonDisabled,
         ]}
       >
         <IconArtwork
@@ -87,6 +114,11 @@ export function SoundButton({ onLongPress, size, sound }: SoundButtonProps) {
             progress={playbackProgress}
             size={size - 6}
           />
+        ) : null}
+        {isSelected ? (
+          <View style={styles.selectionMark}>
+            <MaterialIcons color="#E74E36" name="check" size={20} />
+          </View>
         ) : null}
       </Pressable>
       <Text
@@ -113,6 +145,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 6,
+  },
+  selectionMark: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderColor: "#E74E36",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 2,
   },
   buttonPressed: {
     transform: [{ translateX: 4 }, { translateY: 4 }],

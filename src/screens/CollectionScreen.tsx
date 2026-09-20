@@ -1,9 +1,10 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { type Href, useRouter } from "expo-router";
+import { type Href, useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    BackHandler,
     FlatList,
     Pressable,
     ScrollView,
@@ -64,6 +65,43 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
   const [data, setData] = useState<CollectionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [selection, setSelection] = useState<{
+    ids: readonly string[];
+    kind: "collection" | "sound" | null;
+  } | null>(null);
+  const hasLeftScreen = useRef(false);
+
+  const isSelectionMode = selection !== null;
+  const selectedIds = new Set(selection?.ids ?? []);
+
+  const clearSelection = () => setSelection(null);
+
+  const toggleSelectionMode = () => {
+    setSelection((current) => (current ? null : { ids: [], kind: null }));
+  };
+
+  const selectItem = (kind: "collection" | "sound", id: string) => {
+    setSelection((current) => {
+      if (!current) return null;
+      if (current.ids.length > 0 && current.kind !== kind) return current;
+      const ids = current.ids.includes(id)
+        ? current.ids.filter((selectedId) => selectedId !== id)
+        : [...current.ids, id];
+      return ids.length === 0 ? { ids: [], kind: null } : { ids, kind };
+    });
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasLeftScreen.current) {
+        setSelection(null);
+        hasLeftScreen.current = false;
+      }
+      return () => {
+        hasLeftScreen.current = true;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     let isCancelled = false;
@@ -165,6 +203,18 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
     sounds,
   ]);
 
+  useEffect(() => {
+    if (!isSelectionMode) return;
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        clearSelection();
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [isSelectionMode]);
+
   const availableWidth = Math.max(0, width - PAGE_PADDING * 2);
   const columnCount = Math.max(
     1,
@@ -215,6 +265,18 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
     router.push(`/organize/${kind}/${id}` as Href);
   };
 
+  const routeToBulkOrganizer = () => {
+    if (!selection || selection.ids.length === 0 || !selection.kind) return;
+    if (selection.ids.length === 1) {
+      routeToOrganizer(selection.kind, selection.ids[0]);
+      return;
+    }
+    const ids = encodeURIComponent(selection.ids.join(","));
+    router.push(
+      `/organize/${selection.kind}/${selection.ids[0]}?ids=${ids}` as Href,
+    );
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -226,20 +288,40 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
         >
           {data.collection.name.toUpperCase()}
         </Text>
-        <Pressable
-          accessibilityLabel="Open menu"
-          accessibilityRole="button"
-          onPress={() =>
-            router.push({ pathname: "/menu", params: { collectionId } } as Href)
-          }
-          style={({ pressed }) => [
-            styles.menuButton,
-            { borderColor: colors.border, backgroundColor: colors.surface },
-            pressed && styles.pressed,
-          ]}
-        >
-          <MaterialIcons color={colors.text} name="menu" size={28} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="Toggle multiselect"
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSelectionMode }}
+            onPress={toggleSelectionMode}
+            style={({ pressed }) => [
+              styles.menuButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              isSelectionMode && { backgroundColor: colors.accent },
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="checklist" size={28} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Open menu"
+            accessibilityRole="button"
+            onPress={() => {
+              clearSelection();
+              router.push({
+                pathname: "/menu",
+                params: { collectionId },
+              } as Href);
+            }}
+            style={({ pressed }) => [
+              styles.menuButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="menu" size={28} />
+          </Pressable>
+        </View>
       </View>
 
       {data.ancestors.length > 0 ? (
@@ -254,7 +336,10 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             <View key={ancestor.id} style={styles.breadcrumbItem}>
               <Pressable
                 accessibilityRole="link"
-                onPress={() => router.navigate(collectionHref(ancestor.id))}
+                onPress={() => {
+                  clearSelection();
+                  router.navigate(collectionHref(ancestor.id));
+                }}
               >
                 <Text style={[styles.breadcrumbText, { color: colors.text }]}>
                   {ancestor.name}
@@ -304,15 +389,58 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
         renderItem={({ item }) =>
           item.kind === "sound" ? (
             <SoundButton
-              onLongPress={() => routeToOrganizer("sound", item.value.id)}
+              accessibilityHint={
+                isSelectionMode &&
+                selection.ids.length > 0 &&
+                selection.kind !== "sound"
+                  ? "Collections are selected. Turn off multiselect to select sounds."
+                  : undefined
+              }
+              isSelected={selectedIds.has(item.value.id)}
+              isSelectionDisabled={
+                isSelectionMode &&
+                selection.ids.length > 0 &&
+                selection.kind !== "sound"
+              }
+              onLongPress={
+                isSelectionMode
+                  ? undefined
+                  : () => routeToOrganizer("sound", item.value.id)
+              }
+              onSelect={
+                isSelectionMode
+                  ? () => selectItem("sound", item.value.id)
+                  : undefined
+              }
               size={buttonSize}
               sound={item.playable}
             />
           ) : item.kind === "collection" ? (
             <CollectionButton
+              accessibilityHint={
+                isSelectionMode &&
+                selection.ids.length > 0 &&
+                selection.kind !== "collection"
+                  ? "Sounds are selected. Turn off multiselect to select collections."
+                  : undefined
+              }
               collection={item.value}
+              isSelected={selectedIds.has(item.value.id)}
+              isSelectionDisabled={
+                isSelectionMode &&
+                selection.ids.length > 0 &&
+                selection.kind !== "collection"
+              }
               onLongPress={() => routeToOrganizer("collection", item.value.id)}
-              onOpen={() => router.push(collectionHref(item.value.id))}
+              onOpen={() => {
+                if (isSelectionMode) return;
+                router.push(collectionHref(item.value.id));
+              }}
+              onSelect={
+                isSelectionMode
+                  ? () => selectItem("collection", item.value.id)
+                  : undefined
+              }
               playableSounds={data.randomizerSounds.get(item.value.id) ?? []}
               size={buttonSize}
             />
@@ -321,6 +449,8 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               <Pressable
                 accessibilityLabel={GRID_ACTIONS[item.action].label}
                 accessibilityRole="button"
+                accessibilityState={{ disabled: isSelectionMode }}
+                disabled={isSelectionMode}
                 onPress={() => {
                   if (item.action === "addCollection") {
                     router.push({
@@ -345,6 +475,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
                     shadowColor: colors.shadow,
                   },
                   pressed && styles.actionButtonPressed,
+                  isSelectionMode && styles.disabled,
                 ]}
               >
                 <MaterialIcons
@@ -366,6 +497,28 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
           )
         }
       />
+      {isSelectionMode && selection.ids.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={routeToBulkOrganizer}
+          style={({ pressed }) => [
+            styles.modifyButton,
+            { backgroundColor: colors.accent, borderColor: colors.border },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[styles.modifyLabel, { color: colors.text }]}>
+            MODIFY {selection.ids.length}{" "}
+            {selection.kind === "sound"
+              ? selection.ids.length === 1
+                ? "SOUND"
+                : "SOUNDS"
+              : selection.ids.length === 1
+                ? "COLLECTION"
+                : "COLLECTIONS"}
+          </Text>
+        </Pressable>
+      ) : null}
       <StatusBar style={statusBarStyle} />
     </SafeAreaView>
   );
@@ -402,6 +555,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
   },
+  headerActions: { flexDirection: "row", gap: 10 },
+  modifyButton: {
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: PAGE_PADDING,
+    marginBottom: 12,
+    borderRadius: 4,
+    borderWidth: 3,
+  },
+  modifyLabel: { fontFamily: "Courier", fontSize: 16, fontWeight: "700" },
+  disabled: { opacity: 0.42 },
   breadcrumbs: {
     minHeight: 40,
     alignItems: "center",

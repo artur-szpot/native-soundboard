@@ -75,6 +75,42 @@ export class SqliteCollectionRepository implements CollectionRepository {
     });
   }
 
+  async deleteMany(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.includes("main")) {
+      throw new Error("Main cannot be deleted.");
+    }
+    await this.database.withTransactionAsync(async () => {
+      const placeholders = uniqueIds.map(() => "?").join(", ");
+      const selected = await this.database.getAllAsync<CollectionRow>(
+        `SELECT * FROM collections WHERE id IN (${placeholders})`,
+        ...uniqueIds,
+      );
+      if (selected.length !== uniqueIds.length) {
+        throw new Error("Collection does not exist.");
+      }
+      const parentId = selected[0].parent_id;
+      if (
+        !parentId ||
+        selected.some((collection) => collection.parent_id !== parentId)
+      ) {
+        throw new Error("Selected collections must share a parent.");
+      }
+      await this.database.runAsync(
+        `UPDATE collections SET parent_id = ?, updated_at = ?
+         WHERE parent_id IN (${placeholders})`,
+        parentId,
+        Date.now(),
+        ...uniqueIds,
+      );
+      await this.database.runAsync(
+        `DELETE FROM collections WHERE id IN (${placeholders})`,
+        ...uniqueIds,
+      );
+    });
+  }
+
   async getById(id: string): Promise<Collection | null> {
     const row = await this.database.getFirstAsync<CollectionRow>(
       "SELECT * FROM collections WHERE id = ?",
@@ -238,6 +274,54 @@ export class SqliteCollectionRepository implements CollectionRepository {
     });
   }
 
+  async reparentMany(ids: readonly string[], parentId: string): Promise<void> {
+    if (ids.length === 0) return;
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.includes("main")) {
+      throw new Error("Main cannot be moved.");
+    }
+    await this.database.withTransactionAsync(async () => {
+      const parent = await this.getById(parentId);
+      if (!parent) throw new Error("Parent collection does not exist.");
+      const placeholders = uniqueIds.map(() => "?").join(", ");
+      const selected = await this.database.getAllAsync<CollectionRow>(
+        `SELECT * FROM collections WHERE id IN (${placeholders})`,
+        ...uniqueIds,
+      );
+      if (selected.length !== uniqueIds.length) {
+        throw new Error("Collection does not exist.");
+      }
+      for (const id of uniqueIds) {
+        if (id === parentId) {
+          throw new Error("A collection cannot be its own parent.");
+        }
+        const descendant = await this.database.getFirstAsync<{ id: string }>(
+          `WITH RECURSIVE descendants(id) AS (
+             SELECT id FROM collections WHERE parent_id = ?
+             UNION ALL
+             SELECT collections.id FROM collections
+             INNER JOIN descendants ON collections.parent_id = descendants.id
+           )
+           SELECT id FROM descendants WHERE id = ? LIMIT 1`,
+          id,
+          parentId,
+        );
+        if (descendant) {
+          throw new Error(
+            "A collection cannot be moved below one of its descendants.",
+          );
+        }
+      }
+      await this.database.runAsync(
+        `UPDATE collections SET parent_id = ?, updated_at = ?
+         WHERE id IN (${placeholders})`,
+        parentId,
+        Date.now(),
+        ...uniqueIds,
+      );
+    });
+  }
+
   async update(id: string, name: string, role: CollectionRole): Promise<void> {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -261,6 +345,59 @@ export class SqliteCollectionRepository implements CollectionRepository {
       iconUri,
       Date.now(),
       id,
+    );
+  }
+
+  async updateIconForCollections(
+    ids: readonly string[],
+    iconUri: string | null,
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    const uniqueIds = [...new Set(ids)];
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    await this.database.runAsync(
+      `UPDATE collections SET icon_uri = ?, updated_at = ?
+       WHERE id IN (${placeholders})`,
+      iconUri,
+      Date.now(),
+      ...uniqueIds,
+    );
+  }
+
+  async updateHideBorderForCollections(
+    ids: readonly string[],
+    hideBorder: boolean,
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    const uniqueIds = [...new Set(ids)];
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    await this.database.runAsync(
+      `UPDATE collections SET hide_border = CASE
+         WHEN icon_uri IS NOT NULL AND icon_uri NOT LIKE 'material:%' THEN ?
+         ELSE 0 END, updated_at = ?
+       WHERE id IN (${placeholders})`,
+      hideBorder ? 1 : 0,
+      Date.now(),
+      ...uniqueIds,
+    );
+  }
+
+  async updateRoleForCollections(
+    ids: readonly string[],
+    role: CollectionRole,
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.includes("main") && role !== "directory") {
+      throw new Error("Main must remain a directory.");
+    }
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    await this.database.runAsync(
+      `UPDATE collections SET role = ?, updated_at = ?
+       WHERE id IN (${placeholders})`,
+      role,
+      Date.now(),
+      ...uniqueIds,
     );
   }
 

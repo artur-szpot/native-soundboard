@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { Collection, Sound } from "../../../../src/domain/models";
+import { parseIds } from "../../../../src/navigation/routes";
 import { useRepositories } from "../../../../src/repositories/RepositoryProvider";
 import { useTheme } from "../../../../src/theme/ThemeProvider";
 
@@ -50,11 +51,15 @@ function arrangeAsTree(collections: readonly Collection[]): CollectionOption[] {
 }
 
 export default function SoundCollectionsRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ids: idsParam } = useLocalSearchParams<{
+    id: string;
+    ids?: string;
+  }>();
   const router = useRouter();
   const { collections, refresh, sounds } = useRepositories();
   const { colors } = useTheme();
   const [sound, setSound] = useState<Sound | null>(null);
+  const [selectedSounds, setSelectedSounds] = useState<readonly Sound[]>([]);
   const [availableCollections, setAvailableCollections] = useState<
     readonly Collection[]
   >([]);
@@ -65,40 +70,100 @@ export default function SoundCollectionsRoute() {
   const [savingCollectionId, setSavingCollectionId] = useState<string | null>(
     null,
   );
+  const selectedIds = parseIds(idsParam);
+  const isBulk = selectedIds.length > 1;
 
   useEffect(() => {
     Promise.all([
-      sounds.getById(id),
+      isBulk
+        ? Promise.all(
+            selectedIds.map((selectedId) => sounds.getById(selectedId)),
+          )
+        : sounds
+            .getById(id)
+            .then((selectedSound) => (selectedSound ? [selectedSound] : [])),
       collections.listAll(),
-      sounds.listMembershipCollectionIds(id),
+      isBulk
+        ? Promise.all(
+            selectedIds.map((selectedId) =>
+              sounds.listMembershipCollectionIds(selectedId),
+            ),
+          )
+        : sounds
+            .listMembershipCollectionIds(id)
+            .then((collectionIds) => [collectionIds]),
     ])
-      .then(([selectedSound, allCollections, collectionIds]) => {
+      .then(([loadedSounds, allCollections, allMemberships]) => {
+        const validSounds = loadedSounds.filter(
+          (item): item is Sound => item !== null,
+        );
+        if (validSounds.length !== selectedIds.length && isBulk) {
+          throw new Error("One or more sounds could not be found.");
+        }
+        const selectedSound = validSounds[0];
         if (!selectedSound) throw new Error("Sound not found.");
         setSound(selectedSound);
+        setSelectedSounds(validSounds);
         setAvailableCollections(
           allCollections.filter((collection) => collection.id !== "main"),
         );
-        setMemberships(new Set(collectionIds));
+        const membershipSets = allMemberships.map(
+          (collectionIds) => new Set(collectionIds),
+        );
+        setMemberships(
+          new Set(
+            membershipSets[0] && membershipSets.every((set) => set.has("main"))
+              ? [...membershipSets[0]].filter((collectionId) =>
+                  membershipSets.every((set) => set.has(collectionId)),
+                )
+              : [],
+          ),
+        );
+        setMembershipSets(membershipSets);
       })
       .catch((loadError: unknown) =>
         setError(
           loadError instanceof Error ? loadError.message : String(loadError),
         ),
       );
-  }, [collections, id, sounds]);
+  }, [collections, id, isBulk, selectedIds.join(","), sounds]);
+
+  const [membershipSets, setMembershipSets] = useState<
+    readonly ReadonlySet<string>[]
+  >([]);
 
   const toggleMembership = async (collectionId: string) => {
-    const included = !memberships.has(collectionId);
+    const included = isBulk
+      ? !membershipSets.every((set) => set.has(collectionId))
+      : !memberships.has(collectionId);
     setSavingCollectionId(collectionId);
     setError(null);
     try {
-      await sounds.setMembership(id, collectionId, included);
+      if (isBulk) {
+        await sounds.setMembershipForSounds(
+          selectedIds,
+          collectionId,
+          included,
+        );
+      } else {
+        await sounds.setMembership(id, collectionId, included);
+      }
       setMemberships((current) => {
         const next = new Set(current);
         if (included) next.add(collectionId);
         else next.delete(collectionId);
         return next;
       });
+      if (isBulk) {
+        setMembershipSets((current) =>
+          current.map((set) => {
+            const next = new Set(set);
+            if (included) next.add(collectionId);
+            else next.delete(collectionId);
+            return next;
+          }),
+        );
+      }
       refresh();
     } catch (membershipError: unknown) {
       setError(
@@ -162,12 +227,22 @@ export default function SoundCollectionsRoute() {
           </Text>
         ) : null}
         {arrangeAsTree(availableCollections).map(({ collection, depth }) => {
-          const isChecked = memberships.has(collection.id);
+          const isChecked = isBulk
+            ? membershipSets.length > 0 &&
+              membershipSets.every((set) => set.has(collection.id))
+            : memberships.has(collection.id);
+          const isMixed =
+            isBulk &&
+            membershipSets.some((set) => set.has(collection.id)) &&
+            !membershipSets.every((set) => set.has(collection.id));
           const isSaving = savingCollectionId === collection.id;
           return (
             <Pressable
               accessibilityRole="checkbox"
               accessibilityState={{ checked: isChecked, disabled: isSaving }}
+              accessibilityHint={
+                isMixed ? "Some selected sounds are members" : undefined
+              }
               disabled={isSaving}
               key={collection.id}
               onPress={() => void toggleMembership(collection.id)}
@@ -188,7 +263,13 @@ export default function SoundCollectionsRoute() {
               </Text>
               <MaterialIcons
                 color={colors.text}
-                name={isChecked ? "check-box" : "check-box-outline-blank"}
+                name={
+                  isMixed
+                    ? "indeterminate-check-box"
+                    : isChecked
+                      ? "check-box"
+                      : "check-box-outline-blank"
+                }
                 size={26}
               />
             </Pressable>

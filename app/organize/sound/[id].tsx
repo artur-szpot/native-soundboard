@@ -3,15 +3,15 @@ import * as DocumentPicker from "expo-document-picker";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,6 +19,7 @@ import { IconArtwork } from "../../../src/components/IconArtwork";
 import type { Sound } from "../../../src/domain/models";
 import { isImageIconReference } from "../../../src/icons/iconReferences";
 import { audioMediaService } from "../../../src/media/AudioMediaService";
+import { parseIds } from "../../../src/navigation/routes";
 import { usePlayback } from "../../../src/playback/PlaybackProvider";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
 import { resolvePlayableSound } from "../../../src/sounds/starterSounds";
@@ -34,23 +35,41 @@ const AUDIO_TYPES = [
 ];
 
 export default function OrganizeSoundRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ids: idsParam } = useLocalSearchParams<{
+    id: string;
+    ids?: string;
+  }>();
   const router = useRouter();
   const { refresh, revision, sounds } = useRepositories();
   const { activeSoundId, isBusy, play } = usePlayback();
   const { colors } = useTheme();
   const [sound, setSound] = useState<Sound | null>(null);
+  const [selectedSounds, setSelectedSounds] = useState<readonly Sound[]>([]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingBorder, setIsSavingBorder] = useState(false);
+  const selectedIds = parseIds(idsParam);
+  const isBulk = selectedIds.length > 1;
 
   useEffect(() => {
-    sounds
-      .getById(id)
-      .then((selectedSound) => {
+    (isBulk
+      ? Promise.all(selectedIds.map((selectedId) => sounds.getById(selectedId)))
+      : sounds
+          .getById(id)
+          .then((selectedSound) => (selectedSound ? [selectedSound] : []))
+    )
+      .then((loadedSounds) => {
+        const validSounds = loadedSounds.filter(
+          (item): item is Sound => item !== null,
+        );
+        if (validSounds.length !== selectedIds.length && isBulk) {
+          throw new Error("One or more sounds could not be found.");
+        }
+        const selectedSound = validSounds[0];
         if (!selectedSound) throw new Error("Sound not found.");
         setSound(selectedSound);
+        setSelectedSounds(validSounds);
         setName(selectedSound.name);
       })
       .catch((loadError: unknown) =>
@@ -58,7 +77,78 @@ export default function OrganizeSoundRoute() {
           loadError instanceof Error ? loadError.message : String(loadError),
         ),
       );
-  }, [id, revision, sounds]);
+  }, [id, isBulk, revision, selectedIds.join(","), sounds]);
+
+  const bulkIcon = selectedSounds.every(
+    (item) => item.iconUri === selectedSounds[0]?.iconUri,
+  )
+    ? (selectedSounds[0]?.iconUri ?? null)
+    : null;
+  const bulkHideValues = selectedSounds.map((item) => item.hideBorder);
+  const bulkHideMixed = new Set(bulkHideValues).size > 1;
+  const bulkHideChecked =
+    bulkHideValues.length > 0 && bulkHideValues.every(Boolean);
+
+  const updateBulkIcon = () => {
+    router.push(
+      `/images?ids=${encodeURIComponent(selectedIds.join(","))}&kind=sound` as Href,
+    );
+  };
+
+  const updateBulkHideBorder = async () => {
+    setIsSavingBorder(true);
+    try {
+      await sounds.updateHideBorderForSounds(
+        selectedIds,
+        bulkHideMixed || !bulkHideChecked,
+      );
+      refresh();
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsSavingBorder(false);
+    }
+  };
+
+  const deleteBulkSounds = () => {
+    Alert.alert(
+      "Delete sounds?",
+      `Delete ${selectedIds.length} sounds from Main and every collection? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setIsSaving(true);
+            void sounds
+              .deleteMany(selectedIds)
+              .then((deletedSounds) => {
+                for (const deletedSound of deletedSounds) {
+                  try {
+                    audioMediaService.remove(deletedSound.mediaPath);
+                  } catch {
+                    // Startup orphan cleanup retries removal.
+                  }
+                }
+                refresh();
+                router.back();
+              })
+              .catch((deleteError: unknown) =>
+                setError(
+                  deleteError instanceof Error
+                    ? deleteError.message
+                    : String(deleteError),
+                ),
+              )
+              .finally(() => setIsSaving(false));
+          },
+        },
+      ],
+    );
+  };
 
   const saveName = async () => {
     if (!sound) return;
@@ -209,6 +299,144 @@ export default function OrganizeSoundRoute() {
       )
     : null;
   const hasImage = isImageIconReference(sound?.iconUri ?? null);
+
+  if (isBulk && selectedSounds.length > 1) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View style={styles.header}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: colors.text }]}
+          >
+            MODIFY {selectedIds.length} SOUNDS
+          </Text>
+          <Pressable
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            style={[
+              styles.iconButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="close" size={28} />
+          </Pressable>
+        </View>
+        {error ? (
+          <Text
+            accessibilityRole="alert"
+            style={[styles.error, { color: colors.text }]}
+          >
+            {error}
+          </Text>
+        ) : null}
+        <ScrollView contentContainerStyle={styles.list}>
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <Pressable
+                accessibilityLabel="Choose sound icon"
+                accessibilityRole="button"
+                onPress={updateBulkIcon}
+                style={({ pressed }) => [
+                  styles.squareButton,
+                  {
+                    borderColor:
+                      isImageIconReference(bulkIcon) && bulkHideChecked
+                        ? colors.background
+                        : colors.border,
+                    backgroundColor: isImageIconReference(bulkIcon)
+                      ? colors.background
+                      : colors.accent,
+                    shadowColor: colors.shadow,
+                  },
+                  pressed && styles.squareButtonPressed,
+                ]}
+              >
+                <IconArtwork
+                  color={colors.text}
+                  fallback="play-arrow"
+                  iconUri={bulkIcon}
+                  size={62}
+                />
+              </Pressable>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>
+                ICON
+              </Text>
+            </View>
+          </View>
+          {selectedSounds.some((item) => isImageIconReference(item.iconUri)) ? (
+            <Pressable
+              accessibilityHint={
+                bulkHideMixed
+                  ? "Some selected sounds hide their border"
+                  : undefined
+              }
+              accessibilityLabel="Hide sound border"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: bulkHideChecked }}
+              disabled={isSavingBorder}
+              onPress={() => void updateBulkHideBorder()}
+              style={[
+                styles.checkboxOption,
+                { backgroundColor: colors.background },
+                isSavingBorder && styles.disabled,
+              ]}
+            >
+              <MaterialIcons
+                color={colors.text}
+                name={
+                  bulkHideMixed
+                    ? "indeterminate-check-box"
+                    : bulkHideChecked
+                      ? "check-box"
+                      : "check-box-outline-blank"
+                }
+                size={26}
+              />
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                Hide border
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push(
+                `/organize/sound/${selectedIds[0]}/collections?ids=${encodeURIComponent(selectedIds.join(","))}` as Href,
+              )
+            }
+            style={[
+              styles.command,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="folder" size={22} />
+            <Text style={[styles.commandLabel, { color: colors.text }]}>
+              COLLECTIONS
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel={`Delete ${selectedIds.length} sounds`}
+            accessibilityRole="button"
+            disabled={isSaving}
+            onPress={deleteBulkSounds}
+            style={[
+              styles.command,
+              styles.deleteButton,
+              { borderColor: colors.border },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="delete" size={22} />
+            <Text style={[styles.commandLabel, { color: colors.text }]}>
+              DELETE {selectedIds.length} SOUNDS
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView

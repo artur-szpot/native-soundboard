@@ -14,18 +14,28 @@ const mockReplace = jest.fn();
 const mockRefresh = jest.fn();
 const mockCreate = jest.fn();
 const mockReparent = jest.fn();
+const mockReparentMany = jest.fn();
 const mockSetMembership = jest.fn();
+const mockSetMembershipForSounds = jest.fn();
 const mockPlay = jest.fn();
 const mockUpdateCollection = jest.fn();
 const mockUpdateHideBorder = jest.fn();
+const mockUpdateHideBorderForCollections = jest.fn();
+const mockUpdateHideBorderForSounds = jest.fn();
+const mockUpdateIconForCollections = jest.fn();
+const mockUpdateIconForSounds = jest.fn();
+const mockUpdateRoleForCollections = jest.fn();
 const mockUpdateSoundHideBorder = jest.fn();
 const mockDeleteCollection = jest.fn();
+const mockDeleteManyCollections = jest.fn();
+const mockDeleteManySounds = jest.fn();
 const mockUpdateSoundName = jest.fn();
 let mockParams: Record<string, string> = {};
 let mockRevision = 0;
 let mockFavoritesIconUri: string | null = null;
 let mockBloomIconUri: string | null = null;
 let mockBloomHideBorder = false;
+let mockArchiveRole: "directory" | "randomizer" = "directory";
 
 const mockMain = {
   id: "main",
@@ -64,14 +74,25 @@ const mockBloom = {
   createdAt: 1,
   updatedAt: 1,
 };
+const mockOther = {
+  ...mockMain,
+  id: "other",
+  name: "Other",
+  parentId: "main",
+};
 const mockCollectionGetById = jest.fn(async (id: string) =>
   id === "favorites"
     ? { ...mockFavorites, iconUri: mockFavoritesIconUri }
-    : mockMain,
+    : id === "archive"
+      ? { ...mockArchive, role: mockArchiveRole }
+      : id === "other"
+        ? mockOther
+        : mockMain,
 );
 const mockCollections = {
   create: mockCreate,
   delete: mockDeleteCollection,
+  deleteMany: mockDeleteManyCollections,
   getById: mockCollectionGetById,
   listAll: jest.fn().mockResolvedValue([mockMain, mockFavorites]),
   listChildren: jest.fn().mockResolvedValue([]),
@@ -79,10 +100,15 @@ const mockCollections = {
     .fn()
     .mockResolvedValue([mockClips, mockArchive, mockMain]),
   reparent: mockReparent,
+  reparentMany: mockReparentMany,
   update: mockUpdateCollection,
   updateHideBorder: mockUpdateHideBorder,
+  updateHideBorderForCollections: mockUpdateHideBorderForCollections,
+  updateIconForCollections: mockUpdateIconForCollections,
+  updateRoleForCollections: mockUpdateRoleForCollections,
 };
 const mockSounds = {
+  deleteMany: mockDeleteManySounds,
   getById: jest.fn(async () => ({
     ...mockBloom,
     iconUri: mockBloomIconUri,
@@ -90,7 +116,10 @@ const mockSounds = {
   })),
   listMembershipCollectionIds: jest.fn().mockResolvedValue(["main"]),
   setMembership: mockSetMembership,
+  setMembershipForSounds: mockSetMembershipForSounds,
   updateHideBorder: mockUpdateSoundHideBorder,
+  updateHideBorderForSounds: mockUpdateHideBorderForSounds,
+  updateIconForSounds: mockUpdateIconForSounds,
   updateName: mockUpdateSoundName,
 };
 const mockRepositories = {
@@ -142,15 +171,30 @@ describe("collection management routes", () => {
     jest.clearAllMocks();
     mockCreate.mockResolvedValue(mockFavorites);
     mockReparent.mockResolvedValue(undefined);
+    mockReparentMany.mockResolvedValue(undefined);
+    mockCollections.listValidParents.mockResolvedValue([
+      mockClips,
+      mockArchive,
+      mockMain,
+    ]);
     mockSetMembership.mockResolvedValue(undefined);
+    mockSetMembershipForSounds.mockResolvedValue(undefined);
     mockUpdateCollection.mockResolvedValue(undefined);
     mockDeleteCollection.mockResolvedValue(undefined);
+    mockDeleteManyCollections.mockResolvedValue(undefined);
+    mockDeleteManySounds.mockResolvedValue([]);
     mockUpdateHideBorder.mockResolvedValue(undefined);
+    mockUpdateHideBorderForCollections.mockResolvedValue(undefined);
+    mockUpdateHideBorderForSounds.mockResolvedValue(undefined);
+    mockUpdateIconForCollections.mockResolvedValue(undefined);
+    mockUpdateIconForSounds.mockResolvedValue(undefined);
+    mockUpdateRoleForCollections.mockResolvedValue(undefined);
     mockUpdateSoundHideBorder.mockResolvedValue(undefined);
     mockUpdateSoundName.mockResolvedValue(undefined);
     mockFavoritesIconUri = null;
     mockBloomIconUri = null;
     mockBloomHideBorder = false;
+    mockArchiveRole = "directory";
     mockRevision = 0;
   });
 
@@ -178,6 +222,7 @@ describe("collection management routes", () => {
       expect(mockCreate).toHaveBeenCalledWith("My Mix", "randomizer", "main"),
     );
     expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith("/");
   });
 
   it("opens sound collection membership from a full-width button", async () => {
@@ -223,6 +268,92 @@ describe("collection management routes", () => {
       expect(mockSetMembership).toHaveBeenCalledWith("bloom", "archive", true),
     );
     expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows mixed membership and adds a collection to every selected sound", async () => {
+    mockParams = { id: "bloom", ids: "bloom,second" };
+    mockSounds.listMembershipCollectionIds
+      .mockResolvedValueOnce(["main", "favorites"])
+      .mockResolvedValueOnce(["main"]);
+    const screen = await render(<SoundCollectionsRoute />);
+
+    const favorites = await screen.findByRole("checkbox", {
+      name: "Favorites",
+    });
+    expect(favorites).toHaveProp(
+      "accessibilityHint",
+      "Some selected sounds are members",
+    );
+
+    await fireEvent.press(favorites);
+
+    await waitFor(() =>
+      expect(mockSetMembershipForSounds).toHaveBeenCalledWith(
+        ["bloom", "second"],
+        "favorites",
+        true,
+      ),
+    );
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets mixed collection roles to directory in bulk", async () => {
+    mockParams = { id: "favorites", ids: "favorites,archive" };
+    mockArchiveRole = "randomizer";
+    const screen = await render(<OrganizeCollectionRoute />);
+
+    expect(await screen.findByText("MODIFY 2 COLLECTIONS")).toBeOnTheScreen();
+    expect(screen.queryByText("COLLECTION DETAILS")).not.toBeOnTheScreen();
+    expect(
+      screen.getByRole("button", { name: "Choose collection icon" }),
+    ).toHaveStyle({ aspectRatio: 1 });
+    expect(
+      screen.getByRole("button", { name: "Set collections to directory" }),
+    ).toHaveStyle({ aspectRatio: 1 });
+    expect(
+      screen.getByRole("button", { name: "Change collection parent" }),
+    ).toHaveStyle({ aspectRatio: 1 });
+    expect(screen.getByText("ICON")).toBeOnTheScreen();
+    expect(screen.getByText("SET TO DIRECTORY")).toBeOnTheScreen();
+    expect(screen.getByText("CHANGE PARENT")).toBeOnTheScreen();
+    expect(
+      screen.getByRole("button", { name: "Delete 2 collections" }),
+    ).toHaveTextContent("DELETE 2 COLLECTIONS");
+
+    await fireEvent.press(
+      await screen.findByRole("button", {
+        name: "Set collections to directory",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateRoleForCollections).toHaveBeenCalledWith(
+        ["favorites", "archive"],
+        "directory",
+      ),
+    );
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("reparents all selected collections from the bulk parent picker", async () => {
+    mockParams = { id: "favorites", ids: "favorites,archive" };
+    mockCollections.listValidParents.mockResolvedValue([
+      mockOther,
+      mockArchive,
+      mockMain,
+    ]);
+    const screen = await render(<ChangeCollectionParentRoute />);
+
+    await fireEvent.press(await screen.findByRole("radio", { name: "Other" }));
+
+    await waitFor(() =>
+      expect(mockReparentMany).toHaveBeenCalledWith(
+        ["favorites", "archive"],
+        "other",
+      ),
+    );
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
   it("opens parent selection without showing child collections", async () => {
@@ -321,6 +452,29 @@ describe("collection management routes", () => {
     expect(mockPush).toHaveBeenCalledWith("/images?id=bloom&kind=sound");
     await fireEvent.press(playButton);
     expect(mockPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the single-sound icon layout for bulk sound details", async () => {
+    mockParams = { id: "bloom", ids: "bloom,second" };
+    mockBloomIconUri = "media/images/shared.png";
+    mockBloomHideBorder = true;
+    const screen = await render(<OrganizeSoundRoute />);
+
+    expect(await screen.findByText("MODIFY 2 SOUNDS")).toBeOnTheScreen();
+    expect(screen.queryByText("SOUND DETAILS")).not.toBeOnTheScreen();
+    expect(
+      screen.getByRole("button", { name: "Choose sound icon" }),
+    ).toHaveStyle({
+      aspectRatio: 1,
+    });
+    expect(screen.getByText("ICON")).toBeOnTheScreen();
+    expect(
+      screen.getByRole("checkbox", { name: "Hide sound border" }),
+    ).toBeChecked();
+    expect(screen.getByText("COLLECTIONS")).toBeOnTheScreen();
+    expect(
+      screen.getByRole("button", { name: "Delete 2 sounds" }),
+    ).toHaveTextContent("DELETE 2 SOUNDS");
   });
 
   it("shows square collection actions and toggles its role", async () => {

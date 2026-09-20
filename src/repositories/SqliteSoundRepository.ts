@@ -81,6 +81,25 @@ export class SqliteSoundRepository implements SoundRepository {
     await this.database.runAsync("DELETE FROM sounds WHERE id = ?", id);
   }
 
+  async deleteMany(ids: readonly string[]): Promise<readonly Sound[]> {
+    if (ids.length === 0) return [];
+    const uniqueIds = [...new Set(ids)];
+    let deletedSounds: Sound[] = [];
+    await this.database.withTransactionAsync(async () => {
+      const placeholders = uniqueIds.map(() => "?").join(", ");
+      const rows = await this.database.getAllAsync<SoundRow>(
+        `SELECT * FROM sounds WHERE id IN (${placeholders})`,
+        ...uniqueIds,
+      );
+      await this.database.runAsync(
+        `DELETE FROM sounds WHERE id IN (${placeholders})`,
+        ...uniqueIds,
+      );
+      deletedSounds = rows.map(mapSound);
+    });
+    return deletedSounds;
+  }
+
   async getById(id: string): Promise<Sound | null> {
     const row = await this.database.getFirstAsync<SoundRow>(
       "SELECT * FROM sounds WHERE id = ?",
@@ -154,6 +173,70 @@ export class SqliteSoundRepository implements SoundRepository {
        WHERE sound_id = ? AND collection_id = ?`,
       soundId,
       collectionId,
+    );
+  }
+
+  async setMembershipForSounds(
+    soundIds: readonly string[],
+    collectionId: string,
+    included: boolean,
+  ): Promise<void> {
+    if (soundIds.length === 0) return;
+    if (!included && collectionId === "main") {
+      throw new Error("Sounds cannot be removed from Main.");
+    }
+    const uniqueIds = [...new Set(soundIds)];
+    await this.database.withTransactionAsync(async () => {
+      for (const soundId of uniqueIds) {
+        if (included) {
+          await this.database.runAsync(
+            `INSERT OR IGNORE INTO sound_collection_memberships
+             (sound_id, collection_id) VALUES (?, ?)`,
+            soundId,
+            collectionId,
+          );
+        } else {
+          await this.database.runAsync(
+            `DELETE FROM sound_collection_memberships
+             WHERE sound_id = ? AND collection_id = ?`,
+            soundId,
+            collectionId,
+          );
+        }
+      }
+    });
+  }
+
+  async updateHideBorderForSounds(
+    soundIds: readonly string[],
+    hideBorder: boolean,
+  ): Promise<void> {
+    if (soundIds.length === 0) return;
+    const placeholders = [...new Set(soundIds)].map(() => "?").join(", ");
+    await this.database.runAsync(
+      `UPDATE sounds SET hide_border = CASE
+         WHEN icon_uri IS NOT NULL AND icon_uri NOT LIKE 'material:%' THEN ?
+         ELSE 0 END, updated_at = ?
+       WHERE id IN (${placeholders})`,
+      hideBorder ? 1 : 0,
+      Date.now(),
+      ...new Set(soundIds),
+    );
+  }
+
+  async updateIconForSounds(
+    soundIds: readonly string[],
+    iconUri: string | null,
+  ): Promise<void> {
+    if (soundIds.length === 0) return;
+    const uniqueIds = [...new Set(soundIds)];
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    await this.database.runAsync(
+      `UPDATE sounds SET icon_uri = ?, updated_at = ?
+       WHERE id IN (${placeholders})`,
+      iconUri,
+      Date.now(),
+      ...uniqueIds,
     );
   }
 

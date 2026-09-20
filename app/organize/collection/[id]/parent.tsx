@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { Collection } from "../../../../src/domain/models";
+import { parseIds } from "../../../../src/navigation/routes";
 import { useRepositories } from "../../../../src/repositories/RepositoryProvider";
 import { useTheme } from "../../../../src/theme/ThemeProvider";
 
@@ -50,35 +51,89 @@ function arrangeAsTree(collections: readonly Collection[]): ParentOption[] {
 }
 
 export default function ChangeCollectionParentRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ids: idsParam } = useLocalSearchParams<{
+    id: string;
+    ids?: string;
+  }>();
   const router = useRouter();
   const { collections, refresh } = useRepositories();
   const { colors } = useTheme();
   const [collection, setCollection] = useState<Collection | null>(null);
+  const [selectedCollections, setSelectedCollections] = useState<
+    readonly Collection[]
+  >([]);
   const [parents, setParents] = useState<readonly Collection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const selectedIds = parseIds(idsParam);
+  const isBulk = selectedIds.length > 1;
 
   useEffect(() => {
-    Promise.all([collections.getById(id), collections.listValidParents(id)])
-      .then(([selectedCollection, validParents]) => {
-        if (!selectedCollection) throw new Error("Collection not found.");
-        setCollection(selectedCollection);
-        setParents(validParents);
-      })
-      .catch((loadError: unknown) =>
-        setError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        ),
-      );
-  }, [collections, id]);
+    (isBulk
+      ? Promise.all([
+          Promise.all(
+            selectedIds.map((selectedId) => collections.getById(selectedId)),
+          ),
+          Promise.all(
+            selectedIds.map((selectedId) =>
+              collections.listValidParents(selectedId),
+            ),
+          ),
+        ]).then(([selected, validParentLists]) => {
+          const loaded = selected.filter(
+            (item): item is Collection => item !== null,
+          );
+          if (loaded.length !== selectedIds.length) {
+            throw new Error("One or more collections could not be found.");
+          }
+          const validParentIds = new Set(
+            validParentLists[0].map((item) => item.id),
+          );
+          for (const validParentList of validParentLists.slice(1)) {
+            for (const parentId of [...validParentIds]) {
+              if (!validParentList.some((item) => item.id === parentId)) {
+                validParentIds.delete(parentId);
+              }
+            }
+          }
+          if (validParentIds.size === 0) {
+            throw new Error("The selected collections have no common parent.");
+          }
+          for (const selectedId of selectedIds) {
+            validParentIds.delete(selectedId);
+          }
+          if (validParentIds.size === 0) {
+            throw new Error("The selected collections have no common parent.");
+          }
+          setCollection(loaded[0]);
+          setSelectedCollections(loaded);
+          setParents(
+            validParentLists[0].filter((item) => validParentIds.has(item.id)),
+          );
+        })
+      : Promise.all([
+          collections.getById(id),
+          collections.listValidParents(id),
+        ]).then(([selectedCollection, validParents]) => {
+          if (!selectedCollection) throw new Error("Collection not found.");
+          setCollection(selectedCollection);
+          setSelectedCollections([selectedCollection]);
+          setParents(validParents);
+        })
+    ).catch((loadError: unknown) =>
+      setError(
+        loadError instanceof Error ? loadError.message : String(loadError),
+      ),
+    );
+  }, [collections, id, isBulk, selectedIds.join(",")]);
 
   const chooseParent = async (parentId: string) => {
-    if (!collection || parentId === collection.parentId) return;
+    if (!collection || (parentId === collection.parentId && !isBulk)) return;
     setIsSaving(true);
     setError(null);
     try {
-      await collections.reparent(collection.id, parentId);
+      if (isBulk) await collections.reparentMany(selectedIds, parentId);
+      else await collections.reparent(collection.id, parentId);
       refresh();
       router.back();
     } catch (moveError: unknown) {

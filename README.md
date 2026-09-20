@@ -43,6 +43,12 @@ The application currently provides:
   reveal that shows playback progress on the active sound and its originating
   randomizer while preserving their artwork.
 - Shared playback coordination that prevents sounds from overlapping.
+- Multiselect editing for sounds or collections from any collection screen.
+  Selection is scoped to the current screen and clears when multiselect is
+  turned off or navigation leaves the collection. Bulk editing supports icons,
+  memberships, border visibility, collection roles, parent changes, and
+  confirmed deletion; bulk renaming, playback, and media replacement are not
+  available.
 - Portrait and landscape support.
 - An Expo Router navigation shell with safe-area handling and a startup error
   boundary.

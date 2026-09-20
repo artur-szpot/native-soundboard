@@ -106,6 +106,10 @@ const mockSounds = {
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void) => {
+    const { useEffect } = require("react");
+    useEffect(effect, [effect]);
+  },
   useRouter: () => ({ navigate: mockNavigate, push: mockPush }),
 }));
 jest.mock("../src/settings/PreferencesProvider", () => ({
@@ -439,5 +443,89 @@ describe("SoundboardScreen", () => {
       pathname: "/collections/[collectionId]",
       params: { collectionId: "surprise-me" },
     });
+  });
+
+  it("selects sounds without playing, disables collections, and opens bulk editing", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle multiselect" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Add new collection" }),
+    ).toBeDisabled();
+    const sound = screen.getByRole("button", { name: "Play Bloom" });
+    const collection = screen.getByRole("button", {
+      name: "Open directory Favorites",
+    });
+
+    await fireEvent.press(sound);
+
+    expect(mockPlay).not.toHaveBeenCalled();
+    expect(sound).toHaveProp("accessibilityState", {
+      disabled: false,
+      selected: true,
+    });
+    expect(sound).toHaveStyle({ borderColor: "#E74E36", borderWidth: 5 });
+    expect(collection).toBeDisabled();
+    expect(screen.getByText("MODIFY 1 SOUND")).toBeOnTheScreen();
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "MODIFY 1 SOUND" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith("/organize/sound/bloom");
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle multiselect" }),
+    );
+    expect(screen.queryByText("MODIFY 1 SOUND")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Open directory Favorites" }),
+    ).not.toBeDisabled();
+  });
+
+  it("keeps an incompatible collection tile disabled without pressed feedback", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle multiselect" }),
+    );
+    const sound = screen.getByRole("button", { name: "Play Bloom" });
+    const collection = screen.getByRole("button", {
+      name: "Open directory Favorites",
+    });
+    await fireEvent.press(sound);
+
+    expect(collection).toBeDisabled();
+
+    expect(mockPlay).not.toHaveBeenCalled();
+    expect(screen.getByText("MODIFY 1 SOUND")).toBeOnTheScreen();
+  });
+
+  it("keeps an empty randomizer enabled during multiselect", async () => {
+    mockRandomizerSounds = [];
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle multiselect" }),
+    );
+    const randomizer = screen.getByRole("button", {
+      name: "Play randomizer Surprise Me",
+    });
+
+    expect(randomizer).not.toBeDisabled();
+    await fireEvent.press(randomizer);
+
+    expect(randomizer).toHaveProp("accessibilityState", {
+      disabled: false,
+      selected: true,
+    });
+    expect(randomizer).not.toHaveStyle({ opacity: 0.42 });
+    expect(screen.getByText("MODIFY 1 COLLECTION")).toBeOnTheScreen();
   });
 });

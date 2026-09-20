@@ -16,36 +16,135 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { IconArtwork } from "../../../src/components/IconArtwork";
 import type { Collection } from "../../../src/domain/models";
 import { isImageIconReference } from "../../../src/icons/iconReferences";
-import { collectionHref } from "../../../src/navigation/routes";
+import { collectionHref, parseIds } from "../../../src/navigation/routes";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 
 export default function OrganizeCollectionRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ids: idsParam } = useLocalSearchParams<{
+    id: string;
+    ids?: string;
+  }>();
   const router = useRouter();
   const { collections, refresh, revision } = useRepositories();
   const { colors } = useTheme();
   const [collection, setCollection] = useState<Collection | null>(null);
+  const [selectedCollections, setSelectedCollections] = useState<
+    readonly Collection[]
+  >([]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [isSavingBorder, setIsSavingBorder] = useState(false);
+  const selectedIds = parseIds(idsParam);
+  const isBulk = selectedIds.length > 1;
 
   useEffect(() => {
-    collections
-      .getById(id)
-      .then((selectedCollection) => {
+    (isBulk
+      ? Promise.all(
+          selectedIds.map((selectedId) => collections.getById(selectedId)),
+        )
+      : collections
+          .getById(id)
+          .then((selectedCollection) =>
+            selectedCollection ? [selectedCollection] : [],
+          )
+    )
+      .then((loadedCollections) => {
+        const validCollections = loadedCollections.filter(
+          (item): item is Collection => item !== null,
+        );
+        if (validCollections.length !== selectedIds.length && isBulk) {
+          throw new Error("One or more collections could not be found.");
+        }
+        const selectedCollection = validCollections[0];
         if (!selectedCollection) throw new Error("Collection not found.");
         setCollection(selectedCollection);
         setName(selectedCollection.name);
+        setSelectedCollections(validCollections);
       })
       .catch((loadError: unknown) =>
         setError(
           loadError instanceof Error ? loadError.message : String(loadError),
         ),
       );
-  }, [collections, id, revision]);
+  }, [collections, id, isBulk, revision, selectedIds.join(",")]);
+
+  const bulkIcon = selectedCollections.every(
+    (item) => item.iconUri === selectedCollections[0]?.iconUri,
+  )
+    ? (selectedCollections[0]?.iconUri ?? null)
+    : null;
+  const bulkHideValues = selectedCollections.map((item) => item.hideBorder);
+  const bulkHideMixed = new Set(bulkHideValues).size > 1;
+  const bulkHideChecked =
+    bulkHideValues.length > 0 && bulkHideValues.every(Boolean);
+
+  const bulkUpdateRole = async () => {
+    const role = selectedCollections.every((item) => item.role === "directory")
+      ? "randomizer"
+      : "directory";
+    setIsChangingRole(true);
+    try {
+      await collections.updateRoleForCollections(selectedIds, role);
+      refresh();
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsChangingRole(false);
+    }
+  };
+
+  const bulkUpdateHideBorder = async () => {
+    setIsSavingBorder(true);
+    try {
+      await collections.updateHideBorderForCollections(
+        selectedIds,
+        bulkHideMixed || !bulkHideChecked,
+      );
+      refresh();
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setIsSavingBorder(false);
+    }
+  };
+
+  const deleteBulkCollections = () => {
+    Alert.alert(
+      "Delete collections?",
+      `Delete ${selectedIds.length} collections? Child collections will move to their shared parent. This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setIsSaving(true);
+            void collections
+              .deleteMany(selectedIds)
+              .then(() => {
+                refresh();
+                router.back();
+              })
+              .catch((deleteError: unknown) =>
+                setError(
+                  deleteError instanceof Error
+                    ? deleteError.message
+                    : String(deleteError),
+                ),
+              )
+              .finally(() => setIsSaving(false));
+          },
+        },
+      ],
+    );
+  };
 
   const saveName = async () => {
     if (!collection) return;
@@ -152,6 +251,204 @@ export default function OrganizeCollectionRoute() {
 
   const nameUnchanged = !!collection && name.trim() === collection.name;
   const hasImage = isImageIconReference(collection?.iconUri ?? null);
+
+  if (isBulk && selectedCollections.length > 1) {
+    const rolesMixed =
+      new Set(selectedCollections.map((item) => item.role)).size > 1;
+    const commonParent = selectedCollections[0]?.parentId;
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View style={styles.header}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: colors.text }]}
+          >
+            MODIFY {selectedIds.length} COLLECTIONS
+          </Text>
+          <Pressable
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            style={[
+              styles.iconButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="close" size={28} />
+          </Pressable>
+        </View>
+        {error ? (
+          <Text
+            accessibilityRole="alert"
+            style={[styles.error, { color: colors.text }]}
+          >
+            {error}
+          </Text>
+        ) : null}
+        <ScrollView contentContainerStyle={styles.list}>
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <Pressable
+                accessibilityLabel="Choose collection icon"
+                accessibilityRole="button"
+                onPress={() =>
+                  router.push(
+                    `/images?ids=${encodeURIComponent(selectedIds.join(","))}&kind=collection` as Href,
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.squareButton,
+                  {
+                    borderColor:
+                      isImageIconReference(bulkIcon) && bulkHideChecked
+                        ? colors.background
+                        : colors.border,
+                    backgroundColor: isImageIconReference(bulkIcon)
+                      ? colors.background
+                      : colors.collection,
+                    shadowColor: colors.shadow,
+                  },
+                  pressed && styles.squareButtonPressed,
+                ]}
+              >
+                <IconArtwork
+                  color={colors.text}
+                  fallback="folder"
+                  iconUri={bulkIcon}
+                  size={62}
+                />
+              </Pressable>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>
+                ICON
+              </Text>
+            </View>
+            <View style={styles.actionItem}>
+              <Pressable
+                accessibilityLabel={
+                  rolesMixed
+                    ? "Set collections to directory"
+                    : "Change collection role"
+                }
+                accessibilityRole="button"
+                disabled={isChangingRole}
+                onPress={() => void bulkUpdateRole()}
+                style={({ pressed }) => [
+                  styles.squareButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                    shadowColor: colors.shadow,
+                  },
+                  pressed && styles.squareButtonPressed,
+                  isChangingRole && styles.disabled,
+                ]}
+              >
+                <MaterialIcons
+                  color={colors.text}
+                  name={
+                    rolesMixed || selectedCollections[0]?.role === "directory"
+                      ? "folder"
+                      : "shuffle"
+                  }
+                  size={46}
+                />
+              </Pressable>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>
+                {rolesMixed ? "SET TO DIRECTORY" : "CHANGE ROLE"}
+              </Text>
+            </View>
+            {commonParent ? (
+              <View style={styles.actionItem}>
+                <Pressable
+                  accessibilityLabel="Change collection parent"
+                  accessibilityRole="button"
+                  disabled={isSaving}
+                  onPress={() =>
+                    router.push(
+                      `/organize/collection/${selectedIds[0]}/parent?ids=${encodeURIComponent(selectedIds.join(","))}` as Href,
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.squareButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      shadowColor: colors.shadow,
+                    },
+                    pressed && styles.squareButtonPressed,
+                    isSaving && styles.disabled,
+                  ]}
+                >
+                  <MaterialIcons
+                    color={colors.text}
+                    name="drive-file-move"
+                    size={42}
+                  />
+                </Pressable>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>
+                  CHANGE PARENT
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          {selectedCollections.some((item) =>
+            isImageIconReference(item.iconUri),
+          ) ? (
+            <Pressable
+              accessibilityHint={
+                bulkHideMixed
+                  ? "Some selected collections hide their border"
+                  : undefined
+              }
+              accessibilityLabel="Hide collection border"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: bulkHideChecked }}
+              disabled={isSavingBorder}
+              onPress={() => void bulkUpdateHideBorder()}
+              style={[
+                styles.checkboxOption,
+                { backgroundColor: colors.background },
+                isSavingBorder && styles.disabled,
+              ]}
+            >
+              <MaterialIcons
+                color={colors.text}
+                name={
+                  bulkHideMixed
+                    ? "indeterminate-check-box"
+                    : bulkHideChecked
+                      ? "check-box"
+                      : "check-box-outline-blank"
+                }
+                size={26}
+              />
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                Hide border
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityLabel={`Delete ${selectedIds.length} collections`}
+            accessibilityRole="button"
+            disabled={isSaving}
+            onPress={deleteBulkCollections}
+            style={[
+              styles.command,
+              styles.deleteButton,
+              { borderColor: colors.border },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="delete" size={22} />
+            <Text style={[styles.commandLabel, { color: colors.text }]}>
+              DELETE {selectedIds.length} COLLECTIONS
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView

@@ -29,14 +29,20 @@ import {
     isSupportedImageFilename,
     type PickedImage,
 } from "../src/media/ImageMediaService";
+import { parseIds } from "../src/navigation/routes";
 import { useRepositories } from "../src/repositories/RepositoryProvider";
 import { useTheme } from "../src/theme/ThemeProvider";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 export default function ImagePickerScreen() {
-  const { id, kind } = useLocalSearchParams<{
+  const {
+    id,
+    ids: idsParam,
+    kind,
+  } = useLocalSearchParams<{
     id: string;
+    ids?: string;
     kind: "collection" | "sound";
   }>();
   const router = useRouter();
@@ -48,19 +54,27 @@ export default function ImagePickerScreen() {
   const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
   const [isSaving, setIsSaving] = useState(true);
   const fallback = kind === "collection" ? "folder" : "play-arrow";
+  const selectedIds = parseIds(idsParam);
+  const targetIds = selectedIds.length > 0 ? selectedIds : [id];
+  const isBulk = targetIds.length > 1;
 
   useFocusEffect(
     useCallback(() => {
       const repository = kind === "collection" ? collections : sounds;
-      repository
-        .getById(id)
-        .then((item) => {
-          if (!item) {
+      Promise.all(targetIds.map((targetId) => repository.getById(targetId)))
+        .then((items) => {
+          const validItems = items.filter((item) => item !== null);
+          if (validItems.length !== targetIds.length) {
             throw new Error(
-              `${kind === "collection" ? "Collection" : "Sound"} not found.`,
+              `One or more ${kind === "collection" ? "collections" : "sounds"} could not be found.`,
             );
           }
-          setCurrentIconUri(item.iconUri);
+          const sharedIcon = validItems.every(
+            (item) => item.iconUri === validItems[0]?.iconUri,
+          )
+            ? (validItems[0]?.iconUri ?? null)
+            : null;
+          setCurrentIconUri(sharedIcon);
           setImportedImages(imageMediaService.list());
         })
         .catch((loadError: unknown) =>
@@ -69,12 +83,19 @@ export default function ImagePickerScreen() {
           ),
         )
         .finally(() => setIsSaving(false));
-    }, [collections, id, kind, sounds]),
+    }, [collections, id, kind, sounds, targetIds.join(",")]),
   );
 
   const updateIcon = async (iconUri: string | null) => {
-    if (kind === "collection") await collections.updateIcon(id, iconUri);
-    else await sounds.updateIcon(id, iconUri);
+    if (kind === "collection") {
+      if (isBulk)
+        await collections.updateIconForCollections(targetIds, iconUri);
+      else await collections.updateIcon(id, iconUri);
+    } else if (isBulk) {
+      await sounds.updateIconForSounds(targetIds, iconUri);
+    } else {
+      await sounds.updateIcon(id, iconUri);
+    }
   };
 
   const saveIcon = async (iconUri: string | null) => {
@@ -262,7 +283,10 @@ export default function ImagePickerScreen() {
               onPress={() => void saveIcon(iconUri)}
               style={[
                 styles.option,
-                { borderColor: colors.border, backgroundColor: colors.surface },
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
                 currentIconUri === iconUri && {
                   borderColor: colors.accent,
                   borderWidth: 5,
