@@ -16,14 +16,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { IconArtwork } from "../../../src/components/IconArtwork";
 import type { Collection } from "../../../src/domain/models";
 import { isImageIconReference } from "../../../src/icons/iconReferences";
-import { collectionHref, parseIds } from "../../../src/navigation/routes";
+import { parseIds } from "../../../src/navigation/routes";
 import { useRepositories } from "../../../src/repositories/RepositoryProvider";
 import { useTheme } from "../../../src/theme/ThemeProvider";
 
 export default function OrganizeCollectionRoute() {
-  const { id, ids: idsParam } = useLocalSearchParams<{
+  const {
+    id,
+    ids: idsParam,
+    openedFromSelf,
+  } = useLocalSearchParams<{
     id: string;
     ids?: string;
+    openedFromSelf?: string;
   }>();
   const router = useRouter();
   const { collections, refresh, revision } = useRepositories();
@@ -204,7 +209,6 @@ export default function OrganizeCollectionRoute() {
 
   const deleteCollection = () => {
     if (!collection?.parentId) return;
-    const parentId = collection.parentId;
     Alert.alert(
       "Delete collection?",
       `Delete ${collection.name}? Child collections will move to its parent. Sounds will remain in Main and their other collections.`,
@@ -219,8 +223,12 @@ export default function OrganizeCollectionRoute() {
               .delete(collection.id)
               .then(() => {
                 refresh();
-                router.dismissAll();
-                router.replace(collectionHref(parentId));
+                // The deleted collection's own view cannot be shown again.
+                if (openedFromSelf === "1") {
+                  router.dismiss(2);
+                } else {
+                  router.back();
+                }
               })
               .catch((deleteError: unknown) =>
                 setError(
