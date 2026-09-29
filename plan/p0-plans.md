@@ -76,7 +76,6 @@ explicitly to that scope.
 - Organize the image directory and support drag-and-drop where platforms allow (change order, move to collection).
 - Configure and verify the support URL; do not ship the placeholder without a
   working destination.
-- Search
 
 ## Open Decisions
 

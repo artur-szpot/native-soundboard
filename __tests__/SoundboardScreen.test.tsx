@@ -288,6 +288,15 @@ describe("SoundboardScreen", () => {
     });
   });
 
+  it("opens search from the header", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(screen.getByRole("button", { name: "Search" }));
+
+    expect(mockPush).toHaveBeenCalledWith("/search");
+  });
+
   it("offers a global header list toggle while keeping the grid as default", async () => {
     const screen = await renderScreen();
 
@@ -349,7 +358,9 @@ describe("SoundboardScreen", () => {
     await fireEvent.press(randomizer);
     expect(mockPlayRandomizer).toHaveBeenCalled();
     await fireEvent.press(screen.getByRole("button", { name: "Settings" }));
-    expect(mockPush).toHaveBeenCalledWith("/organize/collection/favorites");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/organize/collection/favorites?openedFromSelf=1",
+    );
   });
 
   it("keeps row playback, selection, and reorder hit areas", async () => {
@@ -568,7 +579,9 @@ describe("SoundboardScreen", () => {
     expect(mockPush).toHaveBeenCalledWith(
       "/sounds/import?collectionId=favorites",
     );
-    expect(mockPush).toHaveBeenCalledWith("/organize/collection/favorites");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/organize/collection/favorites?openedFromSelf=1",
+    );
   });
 
   it("exposes organization as an accessibility action", async () => {

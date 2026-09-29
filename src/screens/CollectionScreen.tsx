@@ -547,7 +547,9 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
           `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
         );
       } else {
-        routeToOrganizer("collection", collectionId);
+        router.push(
+          `/organize/collection/${collectionId}?openedFromSelf=1` as Href,
+        );
       }
     };
 
@@ -697,6 +699,21 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             ]}
           >
             <MaterialIcons color={colors.text} name="checklist" size={28} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Search"
+            accessibilityRole="button"
+            onPress={() => {
+              clearSelection();
+              router.push("/search" as Href);
+            }}
+            style={({ pressed }) => [
+              styles.menuButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons color={colors.text} name="search" size={28} />
           </Pressable>
           <Pressable
             accessibilityLabel="Open menu"

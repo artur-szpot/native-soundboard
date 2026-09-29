@@ -54,6 +54,10 @@ The application currently provides:
   memberships, border visibility, collection roles, parent changes, and
   confirmed deletion; bulk renaming, playback, and media replacement are not
   available.
+- A search screen, opened from the collection header, that finds sounds and
+  randomizers whose names contain the search text, case-insensitively.
+  Results can be played, edited, shown as tiles or a list, and multiselected
+  for bulk editing.
 - Portrait and landscape support.
 - An Expo Router navigation shell with safe-area handling and a startup error
   boundary.

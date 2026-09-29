@@ -259,8 +259,7 @@ export default function OrganizeSoundRoute() {
                   // Startup orphan cleanup retries removal.
                 }
                 refresh();
-                router.dismissAll();
-                router.replace("/");
+                router.back();
               })
               .catch((deleteError: unknown) =>
                 setError(

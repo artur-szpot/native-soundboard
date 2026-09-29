@@ -9,6 +9,7 @@ import SoundCollectionsRoute from "../app/organize/sound/[id]/collections";
 
 const mockBack = jest.fn();
 const mockDismissAll = jest.fn();
+const mockDismiss = jest.fn();
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockRefresh = jest.fn();
@@ -108,6 +109,7 @@ const mockCollections = {
   updateRoleForCollections: mockUpdateRoleForCollections,
 };
 const mockSounds = {
+  delete: jest.fn().mockResolvedValue(undefined),
   deleteMany: mockDeleteManySounds,
   getById: jest.fn(async () => ({
     ...mockBloom,
@@ -133,6 +135,7 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => ({
     back: mockBack,
+    dismiss: mockDismiss,
     dismissAll: mockDismissAll,
     push: mockPush,
     replace: mockReplace,
@@ -681,7 +684,7 @@ describe("collection management routes", () => {
     await waitFor(() => expect(checkbox).toBeEnabled());
   });
 
-  it("deletes a collection after confirmation", async () => {
+  it("deletes a collection after confirmation and returns to the opener", async () => {
     mockParams = { id: "favorites" };
     const alert = jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
     const screen = await render(<OrganizeCollectionRoute />);
@@ -699,7 +702,49 @@ describe("collection management routes", () => {
     await waitFor(() =>
       expect(mockDeleteCollection).toHaveBeenCalledWith("favorites"),
     );
-    expect(mockReplace).toHaveBeenCalledWith("/");
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockDismiss).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it("skips the deleted collection's own view when opened from it", async () => {
+    mockParams = { id: "favorites", openedFromSelf: "1" };
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
+    const screen = await render(<OrganizeCollectionRoute />);
+
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Delete collection" }),
+    );
+    const destructiveAction = alert.mock.calls[0][2]?.find(
+      (action) => action.style === "destructive",
+    );
+    await act(async () => {
+      destructiveAction?.onPress?.();
+    });
+
+    await waitFor(() => expect(mockDismiss).toHaveBeenCalledWith(2));
+    expect(mockBack).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it("deletes a sound after confirmation and returns to the opener", async () => {
+    mockParams = { id: "bloom" };
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
+    const screen = await render(<OrganizeSoundRoute />);
+
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Delete sound globally" }),
+    );
+    const destructiveAction = alert.mock.calls[0][2]?.find(
+      (action) => action.style === "destructive",
+    );
+    await act(async () => {
+      destructiveAction?.onPress?.();
+    });
+
+    await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+    expect(mockReplace).not.toHaveBeenCalled();
     alert.mockRestore();
   });
 });
