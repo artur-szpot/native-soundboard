@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRef } from "react";
 import {
     type AccessibilityActionEvent,
     type GestureResponderEvent,
@@ -23,6 +24,7 @@ interface CollectionButtonProps {
   collection: Collection;
   isSelectionDisabled?: boolean;
   isSelected?: boolean;
+  listView?: boolean;
   onLongPress: () => void;
   onOpen: () => void;
   onReorder?: (side: "left" | "right", toEdge: boolean) => void;
@@ -36,6 +38,7 @@ export function CollectionButton({
   collection,
   isSelectionDisabled = false,
   isSelected = false,
+  listView = false,
   onLongPress,
   onOpen,
   onReorder,
@@ -57,6 +60,8 @@ export function CollectionButton({
   const isDisabled =
     isSelectionDisabled || (isUnavailableRandomizer && !onSelect);
   const isPressDisabled = isSelectionDisabled;
+  const rowWidth = useRef<number>(size);
+  const iconSize = listView ? 56 : size;
   const accessibilityLabel = isRandomizer
     ? `Play randomizer ${collection.name}`
     : `Open directory ${collection.name}`;
@@ -74,10 +79,38 @@ export function CollectionButton({
   };
   const handleLongPress = isRandomizer ? onOpen : onLongPress;
   const reorderSide = (event: GestureResponderEvent) =>
-    event.nativeEvent.locationX < size / 2 ? "left" : "right";
+    event.nativeEvent.locationX < rowWidth.current / 2 ? "left" : "right";
+
+  const artwork = (
+    <>
+      <IconArtwork
+        color={colors.text}
+        fallback={isRandomizer ? "shuffle" : "folder"}
+        iconUri={collection.iconUri}
+        size={Math.round(iconSize * 0.72)}
+        testID={
+          isRandomizer
+            ? `randomizer-icon-${collection.id}`
+            : `directory-icon-${collection.id}`
+        }
+      />
+      {isPlayingRandomizer ? (
+        <PlaybackProgressOverlay
+          duration={playbackDuration}
+          progress={playbackProgress}
+          size={iconSize - 6}
+        />
+      ) : null}
+      {isSelected ? (
+        <View style={styles.selectionMark}>
+          <MaterialIcons color="#E74E36" name="check" size={20} />
+        </View>
+      ) : null}
+    </>
+  );
 
   return (
-    <View style={[styles.item, { width: size }]}>
+    <View style={[styles.item, listView ? styles.listItem : { width: size }]}>
       <Pressable
         accessibilityActions={
           onReorder
@@ -94,7 +127,9 @@ export function CollectionButton({
         accessibilityHint={
           accessibilityHint ??
           (onReorder
-            ? "Tap the left or right side to change position. Hold to move to that edge."
+            ? listView
+              ? "Tap the left or right half of the row to change position. Hold to move to that edge."
+              : "Tap the left or right side to change position. Hold to move to that edge."
             : isRandomizer && playableSounds.length === 0
               ? "This randomizer has no playable sounds. Hold to open the collection"
               : isRandomizer
@@ -115,6 +150,9 @@ export function CollectionButton({
             : undefined
         }
         disabled={isPressDisabled}
+        onLayout={(event) => {
+          rowWidth.current = event.nativeEvent.layout.width;
+        }}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (!onReorder && event.nativeEvent.actionName === "longpress") {
             handleLongPress();
@@ -136,63 +174,101 @@ export function CollectionButton({
         }}
         style={({ pressed }) => [
           styles.button,
+          listView && styles.listButton,
           {
-            width: size,
-            height: size,
+            width: listView ? "100%" : size,
+            minHeight: listView ? iconSize : undefined,
+            height: listView ? undefined : size,
             backgroundColor: isPlayingRandomizer
               ? colors.playing
-              : hasImage
+              : hasImage && !listView
                 ? colors.background
-                : colors.collection,
-            borderColor: isSelected
-              ? "#E74E36"
-              : hasImage && collection.hideBorder
-                ? colors.background
-                : colors.border,
-            borderWidth: isSelected ? 5 : 3,
+                : listView
+                  ? colors.surface
+                  : colors.collection,
+            borderColor:
+              isSelected && !listView
+                ? "#E74E36"
+                : hasImage && collection.hideBorder && !listView
+                  ? colors.background
+                  : colors.border,
+            borderWidth: isSelected && !listView ? 5 : listView ? 2 : 3,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
           isDisabled && !isPlayingRandomizer && styles.buttonDisabled,
         ]}
       >
-        <IconArtwork
-          color={colors.text}
-          fallback={isRandomizer ? "shuffle" : "folder"}
-          iconUri={collection.iconUri}
-          size={Math.round(size * 0.72)}
-          testID={
-            isRandomizer
-              ? `randomizer-icon-${collection.id}`
-              : `directory-icon-${collection.id}`
-          }
-        />
-        {isPlayingRandomizer ? (
-          <PlaybackProgressOverlay
-            duration={playbackDuration}
-            progress={playbackProgress}
-            size={size - 6}
-          />
-        ) : null}
-        {isSelected ? (
-          <View style={styles.selectionMark}>
-            <MaterialIcons color="#E74E36" name="check" size={20} />
-          </View>
-        ) : null}
+        {listView ? (
+          <>
+            <View
+              style={[
+                styles.listIcon,
+                {
+                  width: iconSize,
+                  height: iconSize,
+                  backgroundColor: hasImage
+                    ? colors.background
+                    : colors.collection,
+                  borderColor: isSelected
+                    ? "#E74E36"
+                    : hasImage && collection.hideBorder
+                      ? colors.background
+                      : colors.border,
+                },
+              ]}
+            >
+              {artwork}
+            </View>
+            <Text
+              style={[
+                styles.listLabel,
+                onReorder && styles.listLabelReorder,
+                { color: colors.text },
+              ]}
+            >
+              {collection.name}
+            </Text>
+          </>
+        ) : (
+          artwork
+        )}
         {onReorder ? <ReorderIndicators color={colors.text} /> : null}
       </Pressable>
-      <Text
-        numberOfLines={2}
-        style={[styles.label, { color: colors.text, maxWidth: size }]}
-      >
-        {collection.name}
-      </Text>
+      {!listView ? (
+        <Text
+          numberOfLines={2}
+          style={[styles.label, { color: colors.text, maxWidth: size }]}
+        >
+          {collection.name}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   item: { alignItems: "center", gap: 8 },
+  listItem: { width: "100%" },
+  listButton: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    gap: 12,
+  },
+  listIcon: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderRadius: 4,
+  },
+  listLabel: {
+    flex: 1,
+    fontFamily: "Courier",
+    fontSize: 16,
+    fontWeight: "700",
+    paddingVertical: 10,
+  },
+  listLabelReorder: { paddingRight: 42 },
   button: {
     alignItems: "center",
     justifyContent: "center",

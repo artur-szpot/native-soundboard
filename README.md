@@ -6,7 +6,9 @@ Native Soundboard is an early-stage, free and open source mobile soundboard buil
 
 The application currently provides:
 
-- A responsive grid of four original bundled sound effects.
+- A responsive tile grid of four original bundled sound effects, with a
+  persisted header toggle for a scrollable list of compact icons and longer
+  labels across Main and nested collections.
 - Persisted directory and randomizer collections rooted at an immutable Main
   collection, with seeded Favorites and Surprise Me examples.
 - Nested directory navigation with breadcrumbs and native stack back behavior.
@@ -56,8 +58,9 @@ The application currently provides:
 - An Expo Router navigation shell with safe-area handling and a startup error
   boundary.
 - System-aware light and dark theme tokens.
-- Persisted system, light, or dark theme selection, six button-size levels,
-  and an option to hide sounds assigned elsewhere from Main by default.
+- Persisted system, light, or dark theme selection, six tile button-size
+  levels, list or tile view, and an option to hide sounds assigned elsewhere
+  from Main by default.
 - Versioned SQLite metadata migrations and repository implementations for
   sounds, memberships, and the collection tree.
 - Strict TypeScript domain models and repository contracts.

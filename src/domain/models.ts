@@ -31,5 +31,6 @@ export interface SoundCollectionMembership {
 export type SettingKey =
   | "buttonSize"
   | "hideAssignedSoundsInMain"
+  | "listView"
   | "themePreference";
 export type ThemePreference = "system" | "light" | "dark";

@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRef } from "react";
 import {
     type AccessibilityActionEvent,
     type GestureResponderEvent,
@@ -21,6 +22,7 @@ interface SoundButtonProps {
   accessibilityHint?: string;
   isSelectionDisabled?: boolean;
   isSelected?: boolean;
+  listView?: boolean;
   onLongPress?: () => void;
   onReorder?: (side: "left" | "right", toEdge: boolean) => void;
   onSelect?: () => void;
@@ -32,6 +34,7 @@ export function SoundButton({
   accessibilityHint,
   isSelectionDisabled = false,
   isSelected = false,
+  listView = false,
   onLongPress,
   onReorder,
   onSelect,
@@ -43,11 +46,37 @@ export function SoundButton({
   const { colors } = useTheme();
   const isPlaying = activeSoundId === sound.id;
   const hasImage = isImageIconReference(sound.iconUri ?? null);
+  const rowWidth = useRef<number>(size);
+  const iconSize = listView ? 56 : size;
   const reorderSide = (event: GestureResponderEvent) =>
-    event.nativeEvent.locationX < size / 2 ? "left" : "right";
+    event.nativeEvent.locationX < rowWidth.current / 2 ? "left" : "right";
+
+  const artwork = (
+    <>
+      <IconArtwork
+        color={colors.text}
+        fallback="play-arrow"
+        iconUri={sound.iconUri ?? null}
+        size={Math.round(iconSize * 0.72)}
+        testID={`sound-icon-${sound.id}`}
+      />
+      {isPlaying ? (
+        <PlaybackProgressOverlay
+          duration={playbackDuration}
+          progress={playbackProgress}
+          size={iconSize - 6}
+        />
+      ) : null}
+      {isSelected ? (
+        <View style={styles.selectionMark}>
+          <MaterialIcons color="#E74E36" name="check" size={20} />
+        </View>
+      ) : null}
+    </>
+  );
 
   return (
-    <View style={[styles.item, { width: size }]}>
+    <View style={[styles.item, listView ? styles.listItem : { width: size }]}>
       <Pressable
         accessibilityActions={
           !onReorder && onLongPress
@@ -58,7 +87,9 @@ export function SoundButton({
         accessibilityHint={
           accessibilityHint ??
           (onReorder
-            ? "Tap the left or right side to change position. Hold to move to that edge."
+            ? listView
+              ? "Tap the left or right half of the row to change position. Hold to move to that edge."
+              : "Tap the left or right side to change position. Hold to move to that edge."
             : undefined)
         }
         accessibilityRole="button"
@@ -77,6 +108,9 @@ export function SoundButton({
             : undefined
         }
         disabled={isSelectionDisabled}
+        onLayout={(event) => {
+          rowWidth.current = event.nativeEvent.layout.width;
+        }}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
           if (!onReorder && event.nativeEvent.actionName === "longpress") {
             onLongPress?.();
@@ -100,53 +134,73 @@ export function SoundButton({
         }}
         style={({ pressed }) => [
           styles.button,
+          listView && styles.listButton,
           {
-            width: size,
-            height: size,
+            width: listView ? "100%" : size,
+            minHeight: listView ? iconSize : undefined,
+            height: listView ? undefined : size,
             backgroundColor: isPlaying
               ? colors.playing
-              : hasImage
+              : hasImage && !listView
                 ? colors.background
-                : colors.accent,
-            borderColor: isSelected
-              ? "#E74E36"
-              : hasImage && sound.hideBorder
-                ? colors.background
-                : colors.border,
-            borderWidth: isSelected ? 5 : 3,
+                : listView
+                  ? colors.surface
+                  : colors.accent,
+            borderColor:
+              isSelected && !listView
+                ? "#E74E36"
+                : hasImage && sound.hideBorder && !listView
+                  ? colors.background
+                  : colors.border,
+            borderWidth: isSelected && !listView ? 5 : listView ? 2 : 3,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
           isSelectionDisabled && !isPlaying && styles.buttonDisabled,
         ]}
       >
-        <IconArtwork
-          color={colors.text}
-          fallback="play-arrow"
-          iconUri={sound.iconUri ?? null}
-          size={Math.round(size * 0.72)}
-          testID={`sound-icon-${sound.id}`}
-        />
-        {isPlaying ? (
-          <PlaybackProgressOverlay
-            duration={playbackDuration}
-            progress={playbackProgress}
-            size={size - 6}
-          />
-        ) : null}
-        {isSelected ? (
-          <View style={styles.selectionMark}>
-            <MaterialIcons color="#E74E36" name="check" size={20} />
-          </View>
-        ) : null}
+        {listView ? (
+          <>
+            <View
+              style={[
+                styles.listIcon,
+                {
+                  width: iconSize,
+                  height: iconSize,
+                  backgroundColor: hasImage ? colors.background : colors.accent,
+                  borderColor: isSelected
+                    ? "#E74E36"
+                    : hasImage && sound.hideBorder
+                      ? colors.background
+                      : colors.border,
+                },
+              ]}
+            >
+              {artwork}
+            </View>
+            <Text
+              style={[
+                styles.listLabel,
+                onReorder && styles.listLabelReorder,
+                { color: colors.text },
+              ]}
+            >
+              {sound.name}
+            </Text>
+          </>
+        ) : (
+          artwork
+        )}
         {onReorder ? <ReorderIndicators color={colors.text} /> : null}
       </Pressable>
-      <Text
-        numberOfLines={2}
-        style={[styles.label, { color: colors.text, maxWidth: size }]}
-      >
-        {sound.name}
-      </Text>
+      {!listView ? (
+        <Text
+          numberOfLines={2}
+          style={[styles.label, { color: colors.text, maxWidth: size }]}
+        >
+          {sound.name}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -156,6 +210,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  listItem: { width: "100%" },
+  listButton: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    gap: 12,
+  },
+  listIcon: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderRadius: 4,
+  },
+  listLabel: {
+    flex: 1,
+    fontFamily: "Courier",
+    fontSize: 16,
+    fontWeight: "700",
+    paddingVertical: 10,
+  },
+  listLabelReorder: { paddingRight: 42 },
   button: {
     alignItems: "center",
     justifyContent: "center",

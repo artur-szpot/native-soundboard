@@ -77,7 +77,8 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
   const { error: playbackError } = usePlayback();
   const { collections, ordering, refresh, revision, sounds } =
     useRepositories();
-  const { buttonSize, hideAssignedSoundsInMain } = usePreferences();
+  const { buttonSize, hideAssignedSoundsInMain, listView, setListView } =
+    usePreferences();
   const [data, setData] = useState<CollectionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -107,6 +108,16 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
   const toggleReorderMode = () => {
     setSelection(null);
     setIsReorderMode((current) => !current);
+  };
+
+  const toggleListView = () => {
+    pendingPositionAnimation.current = null;
+    itemLayouts.current.clear();
+    itemAnimations.current.forEach((animation) => {
+      animation.stopAnimation();
+      animation.setValue({ x: 0, y: 0 });
+    });
+    setListView(!listView);
   };
 
   const selectItem = (kind: "collection" | "sound", id: string) => {
@@ -464,6 +475,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             selection.ids.length > 0 &&
             selection.kind !== "sound"
           }
+          listView={listView}
           onLongPress={
             isSelectionMode || isReorderMode
               ? undefined
@@ -501,6 +513,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             selection.ids.length > 0 &&
             selection.kind !== "collection"
           }
+          listView={listView}
           onLongPress={() => routeToOrganizer("collection", item.value.id)}
           onOpen={() => {
             if (isSelectionMode) return;
@@ -521,27 +534,61 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
         />
       );
     }
+    const action = GRID_ACTIONS[item.action];
+    const isDisabled = isSelectionMode || isReorderMode;
+    const openAction = () => {
+      if (item.action === "addCollection") {
+        router.push({
+          pathname: "/collections/create",
+          params: { parentId: collectionId },
+        } as Href);
+      } else if (item.action === "importSound") {
+        router.push(
+          `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
+        );
+      } else {
+        routeToOrganizer("collection", collectionId);
+      }
+    };
+
+    if (listView) {
+      return (
+        <Pressable
+          accessibilityLabel={action.label}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isDisabled }}
+          disabled={isDisabled}
+          onPress={openAction}
+          style={({ pressed }) => [
+            styles.listAction,
+            { borderColor: colors.border, backgroundColor: colors.surface },
+            pressed && styles.pressed,
+            isDisabled && styles.disabled,
+          ]}
+        >
+          <View
+            style={[
+              styles.listActionIcon,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <MaterialIcons color={colors.text} name={action.icon} size={34} />
+          </View>
+          <Text style={[styles.listActionLabel, { color: colors.text }]}>
+            {action.label}
+          </Text>
+        </Pressable>
+      );
+    }
+
     return (
       <View style={[styles.gridItem, { width: buttonSize }]}>
         <Pressable
-          accessibilityLabel={GRID_ACTIONS[item.action].label}
+          accessibilityLabel={action.label}
           accessibilityRole="button"
-          accessibilityState={{ disabled: isSelectionMode || isReorderMode }}
-          disabled={isSelectionMode || isReorderMode}
-          onPress={() => {
-            if (item.action === "addCollection") {
-              router.push({
-                pathname: "/collections/create",
-                params: { parentId: collectionId },
-              } as Href);
-            } else if (item.action === "importSound") {
-              router.push(
-                `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
-              );
-            } else {
-              routeToOrganizer("collection", collectionId);
-            }
-          }}
+          accessibilityState={{ disabled: isDisabled }}
+          disabled={isDisabled}
+          onPress={openAction}
           style={({ pressed }) => [
             styles.actionButton,
             {
@@ -552,12 +599,12 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
               shadowColor: colors.shadow,
             },
             pressed && styles.actionButtonPressed,
-            (isSelectionMode || isReorderMode) && styles.disabled,
+            isDisabled && styles.disabled,
           ]}
         >
           <MaterialIcons
             color={colors.text}
-            name={GRID_ACTIONS[item.action].icon}
+            name={action.icon}
             size={Math.round(buttonSize * 0.46)}
           />
         </Pressable>
@@ -568,7 +615,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             { color: colors.text, maxWidth: buttonSize },
           ]}
         >
-          {GRID_ACTIONS[item.action].label}
+          {action.label}
         </Text>
       </View>
     );
@@ -601,6 +648,24 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
           {data.collection.name.toUpperCase()}
         </Text>
         <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="Toggle list view"
+            accessibilityRole="button"
+            accessibilityState={{ selected: listView }}
+            onPress={toggleListView}
+            style={({ pressed }) => [
+              styles.menuButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              listView && { backgroundColor: colors.accent },
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons
+              color={colors.text}
+              name={listView ? "grid-view" : "view-list"}
+              size={28}
+            />
+          </Pressable>
           <Pressable
             accessibilityLabel="Toggle reorder mode"
             accessibilityRole="button"
@@ -706,12 +771,14 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
             </Text>
           ) : null
         }
-        columnWrapperStyle={columnCount > 1 ? styles.row : undefined}
-        contentContainerStyle={styles.grid}
+        columnWrapperStyle={
+          !listView && columnCount > 1 ? styles.row : undefined
+        }
+        contentContainerStyle={listView ? styles.list : styles.grid}
         data={displayItems}
-        key={columnCount}
+        key={`${listView ? "list" : "grid"}-${columnCount}`}
         keyExtractor={itemKey}
-        numColumns={columnCount}
+        numColumns={listView ? 1 : columnCount}
         renderItem={({ item }) => renderGridButton(item)}
       />
       {isSelectionMode && selection.ids.length > 0 ? (
@@ -753,13 +820,16 @@ const styles = StyleSheet.create({
   header: {
     minHeight: 64,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
     paddingHorizontal: PAGE_PADDING,
+    paddingVertical: 8,
   },
   title: {
     flexShrink: 1,
+    minWidth: 90,
     fontFamily: "Courier",
     fontSize: 22,
     fontWeight: "700",
@@ -813,6 +883,32 @@ const styles = StyleSheet.create({
   grid: {
     gap: GRID_GAP,
     padding: PAGE_PADDING,
+  },
+  list: { gap: 10, padding: PAGE_PADDING },
+  listAction: {
+    width: "100%",
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+  },
+  listActionIcon: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  listActionLabel: {
+    flex: 1,
+    fontFamily: "Courier",
+    fontSize: 16,
+    fontWeight: "700",
+    paddingRight: 12,
+    paddingVertical: 10,
   },
   gridItem: { alignItems: "center", gap: 8 },
   actionButton: {
