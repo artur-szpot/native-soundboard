@@ -21,7 +21,9 @@ const mockPreferences = {
   decreaseButtonSize: jest.fn(),
   hideAssignedSoundsInMain: true,
   increaseButtonSize: jest.fn(),
+  listView: false,
   setHideAssignedSoundsInMain: jest.fn(),
+  setListView: jest.fn(),
   setThemePreference: jest.fn(),
   themePreference: "system" as const,
 };
@@ -195,6 +197,7 @@ describe("SoundboardScreen", () => {
     mockChildren = [mockFavorites, mockSurprise];
     mockDirectSounds = mockStarterSounds;
     mockRandomizerSounds = [mockStarterSounds[0]];
+    mockPreferences.listView = false;
   });
 
   const visibleTileLabels = (
@@ -283,6 +286,146 @@ describe("SoundboardScreen", () => {
       pathname: "/menu",
       params: { collectionId: "main" },
     });
+  });
+
+  it("offers a global header list toggle while keeping the grid as default", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    expect(
+      screen.getByRole("button", { name: "Open directory Favorites" }),
+    ).toHaveStyle({ width: 132, height: 132 });
+    const toggle = screen.getByRole("button", { name: "Toggle list view" });
+    expect(toggle).toHaveProp("accessibilityState", { selected: false });
+    await fireEvent.press(toggle);
+    expect(mockPreferences.setListView).toHaveBeenCalledWith(true);
+
+    mockPreferences.listView = true;
+    await screen.rerender(
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <SoundboardScreen />
+        </ThemeProvider>
+      </SafeAreaProvider>,
+    );
+    const listToggle = screen.getByRole("button", { name: "Toggle list view" });
+    expect(listToggle).toHaveProp("accessibilityState", { selected: true });
+    expect(
+      screen.getByRole("button", { name: "Open directory Favorites" }),
+    ).toHaveStyle({ width: "100%", minHeight: 56 });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open directory Favorites" }),
+    );
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/collections/[collectionId]",
+      params: { collectionId: "favorites" },
+    });
+    await fireEvent.press(listToggle);
+    expect(mockPreferences.setListView).toHaveBeenCalledWith(false);
+  });
+
+  it("shows ordered compact rows with wrapping labels and functioning actions", async () => {
+    mockPreferences.listView = true;
+    mockCurrentCollection = mockFavorites;
+    mockChildren = [{ ...mockSurprise, name: "A randomizer with a long name" }];
+    const screen = await renderCollection("favorites");
+
+    const randomizer = await screen.findByRole("button", {
+      name: "Play randomizer A randomizer with a long name",
+    });
+    expect(randomizer).toHaveStyle({ width: "100%", minHeight: 56 });
+    expect(
+      within(randomizer).getByText("A randomizer with a long name"),
+    ).not.toHaveProp("numberOfLines");
+    expect(screen.getByTestId("randomizer-icon-surprise-me")).toHaveProp(
+      "size",
+      Math.round(56 * 0.72),
+    );
+    expect(visibleTileLabels(screen).slice(-3)).toEqual([
+      "Add new collection",
+      "Import sound",
+      "Settings",
+    ]);
+    await fireEvent.press(randomizer);
+    expect(mockPlayRandomizer).toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Settings" }));
+    expect(mockPush).toHaveBeenCalledWith("/organize/collection/favorites");
+  });
+
+  it("keeps row playback, selection, and reorder hit areas", async () => {
+    mockPreferences.listView = true;
+    const screen = await renderScreen();
+    const bloom = await screen.findByRole("button", { name: "Play Bloom" });
+
+    await fireEvent.press(screen.getByRole("button", { name: "Play Click" }));
+    expect(mockPlay).toHaveBeenCalledWith("click", expect.any(Number));
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle multiselect" }),
+    );
+    await fireEvent.press(bloom);
+    expect(mockPlay).toHaveBeenCalledTimes(1);
+    expect(bloom).toHaveProp("accessibilityState", {
+      disabled: false,
+      selected: true,
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle reorder mode" }),
+    );
+    await fireEvent(bloom, "layout", {
+      nativeEvent: { layout: { width: 350 } },
+    });
+    await fireEvent.press(bloom, { nativeEvent: { locationX: 300 } });
+    await waitFor(() =>
+      expect(mockOrdering.reorderChildren).toHaveBeenCalledWith("main", [
+        { id: "favorites", kind: "collection" },
+        { id: "surprise-me", kind: "collection" },
+        { id: "click", kind: "sound" },
+        { id: "bloom", kind: "sound" },
+        { id: "rise", kind: "sound" },
+        { id: "low", kind: "sound" },
+      ]),
+    );
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+    await fireEvent(
+      screen.getByRole("button", { name: "Play Bloom" }),
+      "longPress",
+      { nativeEvent: { locationX: 300 } },
+    );
+    await waitFor(() =>
+      expect(mockOrdering.reorderChildren).toHaveBeenLastCalledWith("main", [
+        { id: "favorites", kind: "collection" },
+        { id: "surprise-me", kind: "collection" },
+        { id: "click", kind: "sound" },
+        { id: "rise", kind: "sound" },
+        { id: "low", kind: "sound" },
+        { id: "bloom", kind: "sound" },
+      ]),
+    );
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(2));
+    screen.unmount();
+  });
+
+  it("keeps playback progress on the compact list icon", async () => {
+    jest.useFakeTimers();
+    mockPreferences.listView = true;
+    mockActiveSoundId = "bloom";
+    mockPlaybackDuration = 10;
+    mockPlaybackProgress = 0.4;
+    const screen = await renderScreen();
+    const bloom = await screen.findByRole("button", { name: "Play Bloom" });
+
+    expect(
+      within(bloom).getByTestId("playback-progress-overlay").parent,
+    ).toHaveStyle({ width: 50, height: 50 });
+    expect(bloom).toHaveProp("accessibilityValue", {
+      max: 100,
+      min: 0,
+      now: 40,
+      text: "40% played",
+    });
+    screen.unmount();
+    jest.useRealTimers();
   });
 
   it("opens directories and plays randomizers", async () => {

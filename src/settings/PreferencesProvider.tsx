@@ -19,7 +19,9 @@ interface PreferencesContextValue {
   decreaseButtonSize: () => void;
   hideAssignedSoundsInMain: boolean;
   increaseButtonSize: () => void;
+  listView: boolean;
   setHideAssignedSoundsInMain: (hide: boolean) => void;
+  setListView: (enabled: boolean) => void;
   setThemePreference: (preference: ThemePreference) => void;
   themePreference: ThemePreference;
 }
@@ -62,6 +64,7 @@ export function PreferencesProvider({
   const [hideAssignedSoundsInMain, setHideAssignedSoundsInMainState] = useState(
     DEFAULT_HIDE_ASSIGNED_SOUNDS_IN_MAIN,
   );
+  const [listView, setListViewState] = useState(false);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>(
     DEFAULT_THEME_PREFERENCE,
   );
@@ -72,12 +75,14 @@ export function PreferencesProvider({
     Promise.all([
       repository.get("buttonSize"),
       repository.get("hideAssignedSoundsInMain"),
+      repository.get("listView"),
       repository.get("themePreference"),
     ])
       .then(
         ([
           storedButtonSize,
           storedHideAssignedSoundsInMain,
+          storedListView,
           storedThemePreference,
         ]) => {
           setButtonSize(parseButtonSize(storedButtonSize));
@@ -87,6 +92,7 @@ export function PreferencesProvider({
               DEFAULT_HIDE_ASSIGNED_SOUNDS_IN_MAIN,
             ),
           );
+          setListViewState(parseBoolean(storedListView, false));
           setThemePreferenceState(parseThemePreference(storedThemePreference));
           setIsLoaded(true);
         },
@@ -130,6 +136,11 @@ export function PreferencesProvider({
       .catch(setLoadError);
   };
 
+  const setListView = (enabled: boolean) => {
+    setListViewState(enabled);
+    void repository.set("listView", String(enabled)).catch(setLoadError);
+  };
+
   return (
     <PreferencesContext
       value={{
@@ -137,7 +148,9 @@ export function PreferencesProvider({
         decreaseButtonSize: () => changeButtonSize(-1),
         hideAssignedSoundsInMain,
         increaseButtonSize: () => changeButtonSize(1),
+        listView,
         setHideAssignedSoundsInMain,
+        setListView,
         setThemePreference,
         themePreference,
       }}
