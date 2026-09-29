@@ -18,6 +18,7 @@ export interface Collection {
   iconUri: string | null;
   hideBorder: boolean;
   parentId: string | null;
+  order: number;
   createdAt: number;
   updatedAt: number;
 }

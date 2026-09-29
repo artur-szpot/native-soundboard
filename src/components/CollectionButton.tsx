@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
     type AccessibilityActionEvent,
+    type GestureResponderEvent,
     Pressable,
     StyleSheet,
     Text,
@@ -15,6 +16,7 @@ import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
 import { IconArtwork } from "./IconArtwork";
 import { PlaybackProgressOverlay } from "./PlaybackProgressOverlay";
+import { ReorderIndicators } from "./ReorderIndicators";
 
 interface CollectionButtonProps {
   accessibilityHint?: string;
@@ -23,6 +25,7 @@ interface CollectionButtonProps {
   isSelected?: boolean;
   onLongPress: () => void;
   onOpen: () => void;
+  onReorder?: (side: "left" | "right", toEdge: boolean) => void;
   onSelect?: () => void;
   playableSounds: readonly PlayableSound[];
   size: ButtonSize;
@@ -35,6 +38,7 @@ export function CollectionButton({
   isSelected = false,
   onLongPress,
   onOpen,
+  onReorder,
   onSelect,
   playableSounds,
   size,
@@ -69,25 +73,33 @@ export function CollectionButton({
     }
   };
   const handleLongPress = isRandomizer ? onOpen : onLongPress;
+  const reorderSide = (event: GestureResponderEvent) =>
+    event.nativeEvent.locationX < size / 2 ? "left" : "right";
 
   return (
     <View style={[styles.item, { width: size }]}>
       <Pressable
-        accessibilityActions={[
-          {
-            name: "longpress",
-            label: isRandomizer
-              ? `Open collection ${collection.name}`
-              : `Organize ${collection.name}`,
-          },
-        ]}
+        accessibilityActions={
+          onReorder
+            ? undefined
+            : [
+                {
+                  name: "longpress",
+                  label: isRandomizer
+                    ? `Open collection ${collection.name}`
+                    : `Organize ${collection.name}`,
+                },
+              ]
+        }
         accessibilityHint={
           accessibilityHint ??
-          (isRandomizer && playableSounds.length === 0
-            ? "This randomizer has no playable sounds. Hold to open the collection"
-            : isRandomizer
-              ? "Hold to open the collection"
-              : undefined)
+          (onReorder
+            ? "Tap the left or right side to change position. Hold to move to that edge."
+            : isRandomizer && playableSounds.length === 0
+              ? "This randomizer has no playable sounds. Hold to open the collection"
+              : isRandomizer
+                ? "Hold to open the collection"
+                : undefined)
         }
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
@@ -104,12 +116,24 @@ export function CollectionButton({
         }
         disabled={isPressDisabled}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
-          if (event.nativeEvent.actionName === "longpress") {
+          if (!onReorder && event.nativeEvent.actionName === "longpress") {
             handleLongPress();
           }
         }}
-        onLongPress={onSelect ? undefined : handleLongPress}
-        onPress={activate}
+        onLongPress={(event) => {
+          if (onReorder) {
+            onReorder(reorderSide(event), true);
+            return;
+          }
+          if (!onSelect) handleLongPress();
+        }}
+        onPress={(event) => {
+          if (onReorder) {
+            onReorder(reorderSide(event), false);
+            return;
+          }
+          activate();
+        }}
         style={({ pressed }) => [
           styles.button,
           {
@@ -155,6 +179,7 @@ export function CollectionButton({
             <MaterialIcons color="#E74E36" name="check" size={20} />
           </View>
         ) : null}
+        {onReorder ? <ReorderIndicators color={colors.text} /> : null}
       </Pressable>
       <Text
         numberOfLines={2}

@@ -8,11 +8,13 @@ import {
 } from "react";
 
 import { removeOrphanedAudio, removeOrphanedImages } from "../media/mediaPaths";
+import { SqliteCollectionOrderingRepository } from "./SqliteCollectionOrderingRepository";
 import { SqliteCollectionRepository } from "./SqliteCollectionRepository";
 import { SqliteSoundRepository } from "./SqliteSoundRepository";
 
 interface RepositoryContextValue {
   collections: SqliteCollectionRepository;
+  ordering: SqliteCollectionOrderingRepository;
   refresh: () => void;
   revision: number;
   sounds: SqliteSoundRepository;
@@ -26,6 +28,9 @@ export function RepositoryProvider({ children }: PropsWithChildren) {
     () => new SqliteCollectionRepository(database),
   );
   const [sounds] = useState(() => new SqliteSoundRepository(database));
+  const [ordering] = useState(
+    () => new SqliteCollectionOrderingRepository(database),
+  );
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -49,6 +54,7 @@ export function RepositoryProvider({ children }: PropsWithChildren) {
     <RepositoryContext
       value={{
         collections,
+        ordering,
         refresh: () => setRevision((currentRevision) => currentRevision + 1),
         revision,
         sounds,

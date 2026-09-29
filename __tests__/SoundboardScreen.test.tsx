@@ -15,6 +15,7 @@ const mockPlay = jest.fn();
 const mockPlayRandomizer = jest.fn();
 const mockPush = jest.fn();
 const mockNavigate = jest.fn();
+const mockRefresh = jest.fn();
 const mockPreferences = {
   buttonSize: 132 as const,
   decreaseButtonSize: jest.fn(),
@@ -35,6 +36,7 @@ const mockMain: Collection = {
   iconUri: null,
   hideBorder: false,
   parentId: null,
+  order: 0,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -103,6 +105,19 @@ const mockCollections = {
 const mockSounds = {
   listByCollection: jest.fn(async () => mockDirectSounds),
 };
+const mockOrdering = {
+  listOrderedChildIds: jest.fn(async () => [
+    ...mockChildren.map((collection) => ({
+      id: collection.id,
+      kind: "collection" as const,
+    })),
+    ...mockDirectSounds.map((sound) => ({
+      id: sound.id,
+      kind: "sound" as const,
+    })),
+  ]),
+  reorderChildren: jest.fn(async () => undefined),
+};
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
 jest.mock("expo-router", () => ({
@@ -131,6 +146,8 @@ jest.mock("../src/playback/PlaybackProvider", () => ({
 jest.mock("../src/repositories/RepositoryProvider", () => ({
   useRepositories: () => ({
     collections: mockCollections,
+    ordering: mockOrdering,
+    refresh: mockRefresh,
     revision: 0,
     sounds: mockSounds,
   }),
@@ -179,6 +196,26 @@ describe("SoundboardScreen", () => {
     mockDirectSounds = mockStarterSounds;
     mockRandomizerSounds = [mockStarterSounds[0]];
   });
+
+  const visibleTileLabels = (
+    screen: Awaited<ReturnType<typeof renderScreen>>,
+  ) =>
+    screen
+      .getAllByRole("button")
+      .map((button) => button.props.accessibilityLabel)
+      .filter((label): label is string =>
+        [
+          "Open directory Favorites",
+          "Play randomizer Surprise Me",
+          "Play Bloom",
+          "Play Click",
+          "Play Rise",
+          "Play Low",
+          "Add new collection",
+          "Import sound",
+          "Settings",
+        ].includes(label),
+      );
 
   it("renders and plays each bundled starter sound", async () => {
     const screen = await renderScreen();
@@ -443,6 +480,161 @@ describe("SoundboardScreen", () => {
       pathname: "/collections/[collectionId]",
       params: { collectionId: "surprise-me" },
     });
+  });
+
+  it("reorders a tile left or right while reorder mode is enabled", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    expect(screen.queryByTestId("reorder-left-indicator")).toBeNull();
+    expect(screen.queryByTestId("reorder-right-indicator")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle reorder mode" }),
+    );
+    expect(screen.getAllByTestId("reorder-left-indicator")).toHaveLength(6);
+    expect(screen.getAllByTestId("reorder-right-indicator")).toHaveLength(6);
+    const favorites = screen.getByRole("button", {
+      name: "Open directory Favorites",
+    });
+
+    await fireEvent.press(favorites, { nativeEvent: { locationX: 100 } });
+
+    expect(visibleTileLabels(screen).slice(0, 6)).toEqual([
+      "Play randomizer Surprise Me",
+      "Open directory Favorites",
+      "Play Bloom",
+      "Play Click",
+      "Play Rise",
+      "Play Low",
+    ]);
+    expect(mockPlayRandomizer).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalledWith({
+      pathname: "/collections/[collectionId]",
+      params: { collectionId: "favorites" },
+    });
+    expect(mockOrdering.reorderChildren).toHaveBeenCalledWith("main", [
+      { id: "surprise-me", kind: "collection" },
+      { id: "favorites", kind: "collection" },
+      { id: "bloom", kind: "sound" },
+      { id: "click", kind: "sound" },
+      { id: "rise", kind: "sound" },
+      { id: "low", kind: "sound" },
+    ]);
+    expect(mockRefresh).toHaveBeenCalled();
+
+    mockOrdering.reorderChildren.mockClear();
+    await fireEvent.press(favorites, { nativeEvent: { locationX: 10 } });
+
+    expect(mockOrdering.reorderChildren).not.toHaveBeenCalled();
+  });
+
+  it("wraps the first tile to the end when reordering left after persistence completes", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle reorder mode" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open directory Favorites" }),
+      { nativeEvent: { locationX: 10 } },
+    );
+
+    await waitFor(() =>
+      expect(visibleTileLabels(screen).slice(0, 6)).toEqual([
+        "Play randomizer Surprise Me",
+        "Play Bloom",
+        "Play Click",
+        "Play Rise",
+        "Play Low",
+        "Open directory Favorites",
+      ]),
+    );
+    expect(mockOrdering.reorderChildren).toHaveBeenCalledWith("main", [
+      { id: "surprise-me", kind: "collection" },
+      { id: "bloom", kind: "sound" },
+      { id: "click", kind: "sound" },
+      { id: "rise", kind: "sound" },
+      { id: "low", kind: "sound" },
+      { id: "favorites", kind: "collection" },
+    ]);
+  });
+
+  it("moves a tile to the beginning or end on hold while reorder mode is enabled", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle reorder mode" }),
+    );
+    const click = screen.getByRole("button", { name: "Play Click" });
+
+    fireEvent(click, "longPress", { nativeEvent: { locationX: 10 } });
+
+    await waitFor(() =>
+      expect(visibleTileLabels(screen).slice(0, 6)).toEqual([
+        "Play Click",
+        "Open directory Favorites",
+        "Play randomizer Surprise Me",
+        "Play Bloom",
+        "Play Rise",
+        "Play Low",
+      ]),
+    );
+    await waitFor(() =>
+      expect(mockOrdering.reorderChildren).toHaveBeenCalledWith("main", [
+        { id: "click", kind: "sound" },
+        { id: "favorites", kind: "collection" },
+        { id: "surprise-me", kind: "collection" },
+        { id: "bloom", kind: "sound" },
+        { id: "rise", kind: "sound" },
+        { id: "low", kind: "sound" },
+      ]),
+    );
+
+    mockOrdering.reorderChildren.mockClear();
+    fireEvent(click, "longPress", { nativeEvent: { locationX: 100 } });
+
+    expect(mockOrdering.reorderChildren).not.toHaveBeenCalled();
+  });
+
+  it("moves a tile to the end on hold after the previous reorder persists", async () => {
+    const screen = await renderScreen();
+
+    await screen.findByText("Favorites");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Toggle reorder mode" }),
+    );
+    fireEvent(screen.getByRole("button", { name: "Play Click" }), "longPress", {
+      nativeEvent: { locationX: 10 },
+    });
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+    mockOrdering.reorderChildren.mockClear();
+
+    fireEvent(screen.getByRole("button", { name: "Play Click" }), "longPress", {
+      nativeEvent: { locationX: 100 },
+    });
+
+    await waitFor(() =>
+      expect(visibleTileLabels(screen).slice(0, 6)).toEqual([
+        "Open directory Favorites",
+        "Play randomizer Surprise Me",
+        "Play Bloom",
+        "Play Rise",
+        "Play Low",
+        "Play Click",
+      ]),
+    );
+    await waitFor(() =>
+      expect(mockOrdering.reorderChildren).toHaveBeenCalledWith("main", [
+        { id: "favorites", kind: "collection" },
+        { id: "surprise-me", kind: "collection" },
+        { id: "bloom", kind: "sound" },
+        { id: "rise", kind: "sound" },
+        { id: "low", kind: "sound" },
+        { id: "click", kind: "sound" },
+      ]),
+    );
   });
 
   it("selects sounds without playing, disables collections, and opens bulk editing", async () => {

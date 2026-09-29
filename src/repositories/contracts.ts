@@ -85,3 +85,27 @@ export interface SettingsRepository {
   get(key: SettingKey): Promise<string | null>;
   set(key: SettingKey, value: string): Promise<void>;
 }
+
+export interface OrderedItem {
+  id: string;
+  kind: "collection" | "sound";
+}
+
+export interface CollectionOrderingRepository {
+  listOrderedChildIds(collectionId: string): Promise<readonly OrderedItem[]>;
+  reorderChildren(
+    collectionId: string,
+    orderedItems: readonly OrderedItem[],
+  ): Promise<void>;
+  moveSoundToCollection(
+    soundId: string,
+    fromCollectionId: string,
+    toCollectionId: string,
+    targetIndex: number,
+  ): Promise<void>;
+  moveCollectionToParent(
+    collectionId: string,
+    toParentId: string,
+    targetIndex: number,
+  ): Promise<void>;
+}

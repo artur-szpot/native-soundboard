@@ -2,6 +2,7 @@ import { randomUUID } from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { Sound } from "../domain/models";
+import { nextOrderIndex, resequence } from "./collectionOrdering";
 import type { SoundRepository } from "./contracts";
 
 interface SoundRow {
@@ -58,10 +59,12 @@ export class SqliteSoundRepository implements SoundRepository {
         timestamp,
         timestamp,
       );
+      const order = await nextOrderIndex(this.database, "main");
       await this.database.runAsync(
         `INSERT INTO sound_collection_memberships
-         (sound_id, collection_id) VALUES (?, 'main')`,
+         (sound_id, collection_id, order_index) VALUES (?, 'main', ?)`,
         id,
+        order,
       );
     });
 
@@ -78,7 +81,18 @@ export class SqliteSoundRepository implements SoundRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await this.database.runAsync("DELETE FROM sounds WHERE id = ?", id);
+    await this.database.withTransactionAsync(async () => {
+      const memberships = await this.database.getAllAsync<{
+        collection_id: string;
+      }>(
+        "SELECT collection_id FROM sound_collection_memberships WHERE sound_id = ?",
+        id,
+      );
+      await this.database.runAsync("DELETE FROM sounds WHERE id = ?", id);
+      for (const membership of memberships) {
+        await resequence(this.database, membership.collection_id);
+      }
+    });
   }
 
   async deleteMany(ids: readonly string[]): Promise<readonly Sound[]> {
@@ -91,11 +105,21 @@ export class SqliteSoundRepository implements SoundRepository {
         `SELECT * FROM sounds WHERE id IN (${placeholders})`,
         ...uniqueIds,
       );
+      const memberships = await this.database.getAllAsync<{
+        collection_id: string;
+      }>(
+        `SELECT DISTINCT collection_id FROM sound_collection_memberships
+         WHERE sound_id IN (${placeholders})`,
+        ...uniqueIds,
+      );
       await this.database.runAsync(
         `DELETE FROM sounds WHERE id IN (${placeholders})`,
         ...uniqueIds,
       );
       deletedSounds = rows.map(mapSound);
+      for (const membership of memberships) {
+        await resequence(this.database, membership.collection_id);
+      }
     });
     return deletedSounds;
   }
@@ -126,7 +150,7 @@ export class SqliteSoundRepository implements SoundRepository {
          ON memberships.sound_id = sounds.id
        WHERE memberships.collection_id = ?
        ${hideAssignedFilter}
-       ORDER BY sounds.name COLLATE NOCASE`,
+       ORDER BY memberships.order_index`,
       collectionId,
     );
     return rows.map(mapSound);
@@ -159,11 +183,13 @@ export class SqliteSoundRepository implements SoundRepository {
     }
 
     if (included) {
+      const order = await nextOrderIndex(this.database, collectionId);
       await this.database.runAsync(
         `INSERT OR IGNORE INTO sound_collection_memberships
-         (sound_id, collection_id) VALUES (?, ?)`,
+         (sound_id, collection_id, order_index) VALUES (?, ?, ?)`,
         soundId,
         collectionId,
+        order,
       );
       return;
     }
@@ -174,6 +200,7 @@ export class SqliteSoundRepository implements SoundRepository {
       soundId,
       collectionId,
     );
+    await resequence(this.database, collectionId);
   }
 
   async setMembershipForSounds(
@@ -187,23 +214,29 @@ export class SqliteSoundRepository implements SoundRepository {
     }
     const uniqueIds = [...new Set(soundIds)];
     await this.database.withTransactionAsync(async () => {
-      for (const soundId of uniqueIds) {
-        if (included) {
-          await this.database.runAsync(
+      if (included) {
+        let order = await nextOrderIndex(this.database, collectionId);
+        for (const soundId of uniqueIds) {
+          const inserted = await this.database.runAsync(
             `INSERT OR IGNORE INTO sound_collection_memberships
-             (sound_id, collection_id) VALUES (?, ?)`,
+             (sound_id, collection_id, order_index) VALUES (?, ?, ?)`,
             soundId,
             collectionId,
+            order,
           );
-        } else {
-          await this.database.runAsync(
-            `DELETE FROM sound_collection_memberships
-             WHERE sound_id = ? AND collection_id = ?`,
-            soundId,
-            collectionId,
-          );
+          if (inserted.changes > 0) order += 1;
         }
+        return;
       }
+      for (const soundId of uniqueIds) {
+        await this.database.runAsync(
+          `DELETE FROM sound_collection_memberships
+           WHERE sound_id = ? AND collection_id = ?`,
+          soundId,
+          collectionId,
+        );
+      }
+      await resequence(this.database, collectionId);
     });
   }
 
