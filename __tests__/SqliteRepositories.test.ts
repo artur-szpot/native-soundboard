@@ -86,6 +86,7 @@ describe("SQLite collection and sound repositories", () => {
 
   it("creates an imported sound with an immutable Main membership", async () => {
     const database = {
+      getFirstAsync: jest.fn().mockResolvedValue({ count: 0 }),
       runAsync: jest.fn(),
       withTransactionAsync: jest.fn(async (task: () => Promise<void>) =>
         task(),
@@ -102,22 +103,33 @@ describe("SQLite collection and sound repositories", () => {
     expect(sound.name).toBe("Air Horn");
     expect(database.runAsync).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining("VALUES (?, 'main')"),
+      expect.stringContaining("VALUES (?, 'main', ?)"),
       sound.id,
+      0,
     );
   });
 
   it("reparents children before deleting a collection", async () => {
     const database = {
-      getFirstAsync: jest.fn().mockResolvedValue({
-        id: "source",
-        name: "Source",
-        role: "directory",
-        icon_uri: null,
-        parent_id: "main",
-        created_at: 1,
-        updated_at: 1,
-      }),
+      getFirstAsync: jest
+        .fn()
+        .mockResolvedValueOnce({
+          id: "source",
+          name: "Source",
+          role: "directory",
+          icon_uri: null,
+          hide_border: 0,
+          parent_id: "main",
+          order_index: 0,
+          created_at: 1,
+          updated_at: 1,
+        })
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 5 }),
+      getAllAsync: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: "child" }])
+        .mockResolvedValue([]),
       runAsync: jest.fn(),
       withTransactionAsync: jest.fn(async (task: () => Promise<void>) =>
         task(),
@@ -131,8 +143,9 @@ describe("SQLite collection and sound repositories", () => {
       1,
       expect.stringContaining("UPDATE collections SET parent_id"),
       "main",
+      6,
       expect.any(Number),
-      "source",
+      "child",
     );
     expect(database.runAsync).toHaveBeenNthCalledWith(
       2,

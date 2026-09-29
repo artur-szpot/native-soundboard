@@ -2,6 +2,7 @@ import { randomUUID } from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { Collection, CollectionRole, Sound } from "../domain/models";
+import { nextOrderIndex, resequence } from "./collectionOrdering";
 import type { CollectionRepository } from "./contracts";
 
 interface CollectionRow {
@@ -11,6 +12,7 @@ interface CollectionRow {
   icon_uri: string | null;
   hide_border: number;
   parent_id: string | null;
+  order_index: number;
   created_at: number;
   updated_at: number;
 }
@@ -34,6 +36,7 @@ function mapCollection(row: CollectionRow): Collection {
     iconUri: row.icon_uri,
     hideBorder: row.hide_border === 1,
     parentId: row.parent_id,
+    order: row.order_index,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -65,13 +68,24 @@ export class SqliteCollectionRepository implements CollectionRepository {
       if (!collection?.parentId) {
         throw new Error("Collection does not exist.");
       }
-      await this.database.runAsync(
-        "UPDATE collections SET parent_id = ?, updated_at = ? WHERE parent_id = ?",
-        collection.parentId,
-        Date.now(),
+      const children = await this.database.getAllAsync<{ id: string }>(
+        "SELECT id FROM collections WHERE parent_id = ? ORDER BY order_index",
         id,
       );
+      let order = await nextOrderIndex(this.database, collection.parentId);
+      for (const child of children) {
+        await this.database.runAsync(
+          `UPDATE collections SET parent_id = ?, order_index = ?, updated_at = ?
+           WHERE id = ?`,
+          collection.parentId,
+          order,
+          Date.now(),
+          child.id,
+        );
+        order += 1;
+      }
       await this.database.runAsync("DELETE FROM collections WHERE id = ?", id);
+      await resequence(this.database, collection.parentId);
     });
   }
 
@@ -97,17 +111,28 @@ export class SqliteCollectionRepository implements CollectionRepository {
       ) {
         throw new Error("Selected collections must share a parent.");
       }
-      await this.database.runAsync(
-        `UPDATE collections SET parent_id = ?, updated_at = ?
-         WHERE parent_id IN (${placeholders})`,
-        parentId,
-        Date.now(),
+      const children = await this.database.getAllAsync<{ id: string }>(
+        `SELECT id FROM collections WHERE parent_id IN (${placeholders})
+         ORDER BY parent_id, order_index`,
         ...uniqueIds,
       );
+      let order = await nextOrderIndex(this.database, parentId);
+      for (const child of children) {
+        await this.database.runAsync(
+          `UPDATE collections SET parent_id = ?, order_index = ?, updated_at = ?
+           WHERE id = ?`,
+          parentId,
+          order,
+          Date.now(),
+          child.id,
+        );
+        order += 1;
+      }
       await this.database.runAsync(
         `DELETE FROM collections WHERE id IN (${placeholders})`,
         ...uniqueIds,
       );
+      await resequence(this.database, parentId);
     });
   }
 
@@ -122,7 +147,7 @@ export class SqliteCollectionRepository implements CollectionRepository {
   async listChildren(parentId: string): Promise<readonly Collection[]> {
     const rows = await this.database.getAllAsync<CollectionRow>(
       `SELECT * FROM collections WHERE parent_id = ?
-       ORDER BY name COLLATE NOCASE`,
+       ORDER BY order_index`,
       parentId,
     );
     return rows.map(mapCollection);
@@ -204,14 +229,16 @@ export class SqliteCollectionRepository implements CollectionRepository {
 
     const id = randomUUID();
     const timestamp = Date.now();
+    const order = await nextOrderIndex(this.database, parentId);
     await this.database.runAsync(
       `INSERT INTO collections
-       (id, name, role, icon_uri, parent_id, created_at, updated_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?)`,
+       (id, name, role, icon_uri, parent_id, order_index, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?)`,
       id,
       trimmedName,
       role,
       parentId,
+      order,
       timestamp,
       timestamp,
     );
@@ -223,6 +250,7 @@ export class SqliteCollectionRepository implements CollectionRepository {
       iconUri: null,
       hideBorder: false,
       parentId,
+      order,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -265,12 +293,18 @@ export class SqliteCollectionRepository implements CollectionRepository {
         );
       }
 
+      const oldParentId = collection.parentId;
+      const order = await nextOrderIndex(this.database, parentId);
       await this.database.runAsync(
-        "UPDATE collections SET parent_id = ?, updated_at = ? WHERE id = ?",
+        "UPDATE collections SET parent_id = ?, order_index = ?, updated_at = ? WHERE id = ?",
         parentId,
+        order,
         Date.now(),
         id,
       );
+      if (oldParentId) {
+        await resequence(this.database, oldParentId);
+      }
     });
   }
 
@@ -312,13 +346,24 @@ export class SqliteCollectionRepository implements CollectionRepository {
           );
         }
       }
-      await this.database.runAsync(
-        `UPDATE collections SET parent_id = ?, updated_at = ?
-         WHERE id IN (${placeholders})`,
-        parentId,
-        Date.now(),
-        ...uniqueIds,
-      );
+      const oldParentIds = [
+        ...new Set(selected.map((row) => row.parent_id).filter(Boolean)),
+      ] as string[];
+      let order = await nextOrderIndex(this.database, parentId);
+      for (const id of uniqueIds) {
+        await this.database.runAsync(
+          "UPDATE collections SET parent_id = ?, order_index = ?, updated_at = ? WHERE id = ?",
+          parentId,
+          order,
+          Date.now(),
+          id,
+        );
+        order += 1;
+      }
+      for (const oldParentId of oldParentIds) {
+        if (oldParentId === parentId) continue;
+        await resequence(this.database, oldParentId);
+      }
     });
   }
 

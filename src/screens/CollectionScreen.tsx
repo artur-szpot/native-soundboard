@@ -3,8 +3,11 @@ import { type Href, useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+    AccessibilityInfo,
     ActivityIndicator,
+    Animated,
     BackHandler,
+    Easing,
     FlatList,
     Pressable,
     ScrollView,
@@ -43,6 +46,18 @@ type GridItem =
   | { kind: "sound"; value: Sound; playable: PlayableSound }
   | { kind: "action"; action: GridAction };
 
+type ReorderableGridItem = Extract<
+  GridItem,
+  { kind: "collection" } | { kind: "sound" }
+>;
+
+type ReorderSide = "left" | "right";
+
+interface TileLayout {
+  x: number;
+  y: number;
+}
+
 interface CollectionData {
   ancestors: readonly Collection[];
   collection: Collection;
@@ -60,16 +75,24 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
   const { width } = useWindowDimensions();
   const { colors, statusBarStyle } = useTheme();
   const { error: playbackError } = usePlayback();
-  const { collections, revision, sounds } = useRepositories();
+  const { collections, ordering, refresh, revision, sounds } =
+    useRepositories();
   const { buttonSize, hideAssignedSoundsInMain } = usePreferences();
   const [data, setData] = useState<CollectionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [displayItems, setDisplayItems] = useState<readonly GridItem[]>([]);
+  const [isReducedMotionEnabled, setIsReducedMotionEnabled] = useState(false);
   const [selection, setSelection] = useState<{
     ids: readonly string[];
     kind: "collection" | "sound" | null;
   } | null>(null);
+  const [isReorderMode, setIsReorderMode] = useState(false);
   const hasLeftScreen = useRef(false);
+  const isReorderSaving = useRef(false);
+  const itemAnimations = useRef(new Map<string, Animated.ValueXY>());
+  const itemLayouts = useRef(new Map<string, TileLayout>());
+  const pendingPositionAnimation = useRef<Map<string, TileLayout> | null>(null);
 
   const isSelectionMode = selection !== null;
   const selectedIds = new Set(selection?.ids ?? []);
@@ -77,7 +100,13 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
   const clearSelection = () => setSelection(null);
 
   const toggleSelectionMode = () => {
+    setIsReorderMode(false);
     setSelection((current) => (current ? null : { ids: [], kind: null }));
+  };
+
+  const toggleReorderMode = () => {
+    setSelection(null);
+    setIsReorderMode((current) => !current);
   };
 
   const selectItem = (kind: "collection" | "sound", id: string) => {
@@ -108,16 +137,22 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
 
     async function load() {
       setLoadError(null);
-      const [collection, ancestors, childCollections, directSounds] =
-        await Promise.all([
-          collections.getById(collectionId),
-          collections.listAncestors(collectionId),
-          collections.listChildren(collectionId),
-          sounds.listByCollection(
-            collectionId,
-            collectionId === "main" && hideAssignedSoundsInMain,
-          ),
-        ]);
+      const [
+        collection,
+        ancestors,
+        childCollections,
+        directSounds,
+        orderedChildIds,
+      ] = await Promise.all([
+        collections.getById(collectionId),
+        collections.listAncestors(collectionId),
+        collections.listChildren(collectionId),
+        sounds.listByCollection(
+          collectionId,
+          collectionId === "main" && hideAssignedSoundsInMain,
+        ),
+        ordering.listOrderedChildIds(collectionId),
+      ]);
       if (!collection) {
         throw new Error("Collection not found.");
       }
@@ -160,19 +195,34 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
       );
 
       if (!isCancelled) {
+        const collectionsById = new Map(
+          childCollections.map((value) => [value.id, value]),
+        );
+        const soundsById = new Map(
+          playableDirectSounds.map((entry) => [entry.sound.id, entry]),
+        );
+        const orderedNonActionItems: GridItem[] = orderedChildIds
+          .map((entry): GridItem | null => {
+            if (entry.kind === "collection") {
+              const value = collectionsById.get(entry.id);
+              return value ? { kind: "collection", value } : null;
+            }
+            const soundEntry = soundsById.get(entry.id);
+            return soundEntry
+              ? {
+                  kind: "sound",
+                  value: soundEntry.sound,
+                  playable: soundEntry.playable,
+                }
+              : null;
+          })
+          .filter((item): item is GridItem => item !== null);
+
         setData({
           ancestors,
           collection,
           items: [
-            ...childCollections.map((value) => ({
-              kind: "collection" as const,
-              value,
-            })),
-            ...playableDirectSounds.map(({ sound, playable }) => ({
-              kind: "sound" as const,
-              value: sound,
-              playable,
-            })),
+            ...orderedNonActionItems,
             { kind: "action", action: "addCollection" },
             { kind: "action", action: "importSound" },
             ...(collection.id === "main"
@@ -198,22 +248,46 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
     collectionId,
     collections,
     hideAssignedSoundsInMain,
+    ordering,
     retryCount,
     revision,
     sounds,
   ]);
 
   useEffect(() => {
-    if (!isSelectionMode) return;
+    let isMounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((isEnabled) => {
+        if (isMounted) setIsReducedMotionEnabled(isEnabled);
+      })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setIsReducedMotionEnabled,
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (data) setDisplayItems(data.items);
+  }, [data]);
+
+  useEffect(() => {
+    if (!isSelectionMode && !isReorderMode) return;
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
         clearSelection();
+        setIsReorderMode(false);
         return true;
       },
     );
     return () => subscription.remove();
-  }, [isSelectionMode]);
+  }, [isReorderMode, isSelectionMode]);
 
   const availableWidth = Math.max(0, width - PAGE_PADDING * 2);
   const columnCount = Math.max(
@@ -277,6 +351,244 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
     );
   };
 
+  const itemKey = (item: GridItem) =>
+    item.kind === "action"
+      ? `${item.kind}:${item.action}`
+      : `${item.kind}:${item.value.id}`;
+
+  const getItemAnimation = (key: string) => {
+    const existing = itemAnimations.current.get(key);
+    if (existing) return existing;
+    const animation = new Animated.ValueXY({ x: 0, y: 0 });
+    itemAnimations.current.set(key, animation);
+    return animation;
+  };
+
+  const animatePendingLayout = (key: string, layout: TileLayout) => {
+    const previousLayouts = pendingPositionAnimation.current;
+    const previousLayout = previousLayouts?.get(key);
+    itemLayouts.current.set(key, layout);
+    if (!previousLayouts || !previousLayout) return;
+
+    previousLayouts.delete(key);
+    if (previousLayouts.size === 0) pendingPositionAnimation.current = null;
+
+    const translateX = previousLayout.x - layout.x;
+    const translateY = previousLayout.y - layout.y;
+    if (translateX === 0 && translateY === 0) return;
+
+    const animation = getItemAnimation(key);
+    animation.stopAnimation();
+    animation.setValue({ x: translateX, y: translateY });
+    Animated.timing(animation, {
+      toValue: { x: 0, y: 0 },
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleReorder = async (
+    item: ReorderableGridItem,
+    side: ReorderSide,
+    toEdge: boolean,
+  ) => {
+    if (isReorderSaving.current) return;
+    const items = displayItems.filter(
+      (candidate): candidate is ReorderableGridItem =>
+        candidate.kind !== "action",
+    );
+    const actionItems = displayItems.filter(
+      (candidate) => candidate.kind === "action",
+    );
+    if (items.length < 2) return;
+
+    const currentIndex = items.findIndex(
+      (candidate) =>
+        candidate.kind === item.kind && candidate.value.id === item.value.id,
+    );
+    if (currentIndex < 0) return;
+
+    const lastIndex = items.length - 1;
+    const targetIndex = toEdge
+      ? side === "left"
+        ? 0
+        : lastIndex
+      : side === "left"
+        ? currentIndex === 0
+          ? lastIndex
+          : currentIndex - 1
+        : currentIndex === lastIndex
+          ? 0
+          : currentIndex + 1;
+    if (targetIndex === currentIndex) return;
+
+    const reordered = [...items];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    const orderedItems = reordered.map((entry) => ({
+      id: entry.value.id,
+      kind: entry.kind,
+    }));
+
+    isReorderSaving.current = true;
+    pendingPositionAnimation.current = isReducedMotionEnabled
+      ? null
+      : new Map(itemLayouts.current);
+    setDisplayItems([...reordered, ...actionItems]);
+
+    try {
+      await ordering.reorderChildren(collectionId, orderedItems);
+    } catch {
+      // Refresh below restores the database-backed order.
+    } finally {
+      isReorderSaving.current = false;
+      refresh();
+    }
+  };
+
+  const renderGridButtonContent = (item: GridItem) => {
+    if (item.kind === "sound") {
+      return (
+        <SoundButton
+          accessibilityHint={
+            isSelectionMode &&
+            selection.ids.length > 0 &&
+            selection.kind !== "sound"
+              ? "Collections are selected. Turn off multiselect to select sounds."
+              : undefined
+          }
+          isSelected={selectedIds.has(item.value.id)}
+          isSelectionDisabled={
+            isSelectionMode &&
+            selection.ids.length > 0 &&
+            selection.kind !== "sound"
+          }
+          onLongPress={
+            isSelectionMode || isReorderMode
+              ? undefined
+              : () => routeToOrganizer("sound", item.value.id)
+          }
+          onReorder={
+            isReorderMode
+              ? (side, toEdge) => void handleReorder(item, side, toEdge)
+              : undefined
+          }
+          onSelect={
+            isSelectionMode
+              ? () => selectItem("sound", item.value.id)
+              : undefined
+          }
+          size={buttonSize}
+          sound={item.playable}
+        />
+      );
+    }
+    if (item.kind === "collection") {
+      return (
+        <CollectionButton
+          accessibilityHint={
+            isSelectionMode &&
+            selection.ids.length > 0 &&
+            selection.kind !== "collection"
+              ? "Sounds are selected. Turn off multiselect to select collections."
+              : undefined
+          }
+          collection={item.value}
+          isSelected={selectedIds.has(item.value.id)}
+          isSelectionDisabled={
+            isSelectionMode &&
+            selection.ids.length > 0 &&
+            selection.kind !== "collection"
+          }
+          onLongPress={() => routeToOrganizer("collection", item.value.id)}
+          onOpen={() => {
+            if (isSelectionMode) return;
+            router.push(collectionHref(item.value.id));
+          }}
+          onSelect={
+            isSelectionMode
+              ? () => selectItem("collection", item.value.id)
+              : undefined
+          }
+          onReorder={
+            isReorderMode
+              ? (side, toEdge) => void handleReorder(item, side, toEdge)
+              : undefined
+          }
+          playableSounds={data?.randomizerSounds.get(item.value.id) ?? []}
+          size={buttonSize}
+        />
+      );
+    }
+    return (
+      <View style={[styles.gridItem, { width: buttonSize }]}>
+        <Pressable
+          accessibilityLabel={GRID_ACTIONS[item.action].label}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isSelectionMode || isReorderMode }}
+          disabled={isSelectionMode || isReorderMode}
+          onPress={() => {
+            if (item.action === "addCollection") {
+              router.push({
+                pathname: "/collections/create",
+                params: { parentId: collectionId },
+              } as Href);
+            } else if (item.action === "importSound") {
+              router.push(
+                `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
+              );
+            } else {
+              routeToOrganizer("collection", collectionId);
+            }
+          }}
+          style={({ pressed }) => [
+            styles.actionButton,
+            {
+              width: buttonSize,
+              height: buttonSize,
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              shadowColor: colors.shadow,
+            },
+            pressed && styles.actionButtonPressed,
+            (isSelectionMode || isReorderMode) && styles.disabled,
+          ]}
+        >
+          <MaterialIcons
+            color={colors.text}
+            name={GRID_ACTIONS[item.action].icon}
+            size={Math.round(buttonSize * 0.46)}
+          />
+        </Pressable>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.gridItemLabel,
+            { color: colors.text, maxWidth: buttonSize },
+          ]}
+        >
+          {GRID_ACTIONS[item.action].label}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderGridButton = (item: GridItem) => {
+    const key = itemKey(item);
+    const animation = getItemAnimation(key);
+    return (
+      <Animated.View
+        onLayout={(event) =>
+          animatePendingLayout(key, event.nativeEvent.layout)
+        }
+        style={{ transform: animation.getTranslateTransform() }}
+      >
+        {renderGridButtonContent(item)}
+      </Animated.View>
+    );
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -289,6 +601,24 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
           {data.collection.name.toUpperCase()}
         </Text>
         <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="Toggle reorder mode"
+            accessibilityRole="button"
+            accessibilityState={{ selected: isReorderMode }}
+            onPress={toggleReorderMode}
+            style={({ pressed }) => [
+              styles.menuButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              isReorderMode && { backgroundColor: colors.accent },
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons
+              color={colors.text}
+              name="drag-indicator"
+              size={28}
+            />
+          </Pressable>
           <Pressable
             accessibilityLabel="Toggle multiselect"
             accessibilityRole="button"
@@ -370,7 +700,7 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
 
       <FlatList
         ListHeaderComponent={
-          data.items.every((item) => item.kind === "action") ? (
+          displayItems.every((item) => item.kind === "action") ? (
             <Text style={[styles.empty, { color: colors.mutedText }]}>
               This collection is empty.
             </Text>
@@ -378,124 +708,11 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
         }
         columnWrapperStyle={columnCount > 1 ? styles.row : undefined}
         contentContainerStyle={styles.grid}
-        data={data.items}
+        data={displayItems}
         key={columnCount}
-        keyExtractor={(item) =>
-          item.kind === "action"
-            ? `${item.kind}:${item.action}`
-            : `${item.kind}:${item.value.id}`
-        }
+        keyExtractor={itemKey}
         numColumns={columnCount}
-        renderItem={({ item }) =>
-          item.kind === "sound" ? (
-            <SoundButton
-              accessibilityHint={
-                isSelectionMode &&
-                selection.ids.length > 0 &&
-                selection.kind !== "sound"
-                  ? "Collections are selected. Turn off multiselect to select sounds."
-                  : undefined
-              }
-              isSelected={selectedIds.has(item.value.id)}
-              isSelectionDisabled={
-                isSelectionMode &&
-                selection.ids.length > 0 &&
-                selection.kind !== "sound"
-              }
-              onLongPress={
-                isSelectionMode
-                  ? undefined
-                  : () => routeToOrganizer("sound", item.value.id)
-              }
-              onSelect={
-                isSelectionMode
-                  ? () => selectItem("sound", item.value.id)
-                  : undefined
-              }
-              size={buttonSize}
-              sound={item.playable}
-            />
-          ) : item.kind === "collection" ? (
-            <CollectionButton
-              accessibilityHint={
-                isSelectionMode &&
-                selection.ids.length > 0 &&
-                selection.kind !== "collection"
-                  ? "Sounds are selected. Turn off multiselect to select collections."
-                  : undefined
-              }
-              collection={item.value}
-              isSelected={selectedIds.has(item.value.id)}
-              isSelectionDisabled={
-                isSelectionMode &&
-                selection.ids.length > 0 &&
-                selection.kind !== "collection"
-              }
-              onLongPress={() => routeToOrganizer("collection", item.value.id)}
-              onOpen={() => {
-                if (isSelectionMode) return;
-                router.push(collectionHref(item.value.id));
-              }}
-              onSelect={
-                isSelectionMode
-                  ? () => selectItem("collection", item.value.id)
-                  : undefined
-              }
-              playableSounds={data.randomizerSounds.get(item.value.id) ?? []}
-              size={buttonSize}
-            />
-          ) : (
-            <View style={[styles.gridItem, { width: buttonSize }]}>
-              <Pressable
-                accessibilityLabel={GRID_ACTIONS[item.action].label}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: isSelectionMode }}
-                disabled={isSelectionMode}
-                onPress={() => {
-                  if (item.action === "addCollection") {
-                    router.push({
-                      pathname: "/collections/create",
-                      params: { parentId: collectionId },
-                    } as Href);
-                  } else if (item.action === "importSound") {
-                    router.push(
-                      `/sounds/import?collectionId=${encodeURIComponent(collectionId)}` as Href,
-                    );
-                  } else {
-                    routeToOrganizer("collection", collectionId);
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.actionButton,
-                  {
-                    width: buttonSize,
-                    height: buttonSize,
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    shadowColor: colors.shadow,
-                  },
-                  pressed && styles.actionButtonPressed,
-                  isSelectionMode && styles.disabled,
-                ]}
-              >
-                <MaterialIcons
-                  color={colors.text}
-                  name={GRID_ACTIONS[item.action].icon}
-                  size={Math.round(buttonSize * 0.46)}
-                />
-              </Pressable>
-              <Text
-                numberOfLines={2}
-                style={[
-                  styles.gridItemLabel,
-                  { color: colors.text, maxWidth: buttonSize },
-                ]}
-              >
-                {GRID_ACTIONS[item.action].label}
-              </Text>
-            </View>
-          )
-        }
+        renderItem={({ item }) => renderGridButton(item)}
       />
       {isSelectionMode && selection.ids.length > 0 ? (
         <Pressable

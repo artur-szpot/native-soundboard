@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 export const DATABASE_NAME = "native-soundboard.db";
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 type MigrationDatabase = Pick<
   SQLiteDatabase,
@@ -157,6 +157,42 @@ const migrationSeven = `
   PRAGMA user_version = 7;
 `;
 
+const migrationEight = `
+  ALTER TABLE collections ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE sound_collection_memberships
+  ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0;
+
+  -- Backfill: collections keep their current alphabetical position among siblings.
+  UPDATE collections
+  SET order_index = (
+    SELECT COUNT(*) FROM collections c2
+    WHERE (c2.parent_id IS collections.parent_id)
+      AND (c2.name COLLATE NOCASE < collections.name COLLATE NOCASE
+        OR (c2.name COLLATE NOCASE = collections.name COLLATE NOCASE
+          AND c2.id < collections.id))
+  );
+
+  -- Backfill: sounds continue the sequence after their collection's child collections.
+  UPDATE sound_collection_memberships
+  SET order_index = (
+    SELECT COUNT(*) FROM collections c
+    WHERE c.parent_id = sound_collection_memberships.collection_id
+  ) + (
+    SELECT COUNT(*) FROM sound_collection_memberships m2
+    INNER JOIN sounds s2 ON s2.id = m2.sound_id
+    INNER JOIN sounds s1 ON s1.id = sound_collection_memberships.sound_id
+    WHERE m2.collection_id = sound_collection_memberships.collection_id
+      AND (s2.name COLLATE NOCASE < s1.name COLLATE NOCASE
+        OR (s2.name COLLATE NOCASE = s1.name COLLATE NOCASE
+          AND m2.sound_id < sound_collection_memberships.sound_id))
+  );
+
+  INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+  VALUES (8, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+
+  PRAGMA user_version = 8;
+`;
+
 export async function migrateDatabase(
   database: MigrationDatabase,
 ): Promise<void> {
@@ -214,6 +250,12 @@ export async function migrateDatabase(
   if (currentVersion < 7) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(migrationSeven);
+    });
+  }
+
+  if (currentVersion < 8) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(migrationEight);
     });
   }
 }

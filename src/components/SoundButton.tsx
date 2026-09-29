@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
     type AccessibilityActionEvent,
+    type GestureResponderEvent,
     Pressable,
     StyleSheet,
     Text,
@@ -14,12 +15,14 @@ import type { PlayableSound } from "../sounds/starterSounds";
 import { useTheme } from "../theme/ThemeProvider";
 import { IconArtwork } from "./IconArtwork";
 import { PlaybackProgressOverlay } from "./PlaybackProgressOverlay";
+import { ReorderIndicators } from "./ReorderIndicators";
 
 interface SoundButtonProps {
   accessibilityHint?: string;
   isSelectionDisabled?: boolean;
   isSelected?: boolean;
   onLongPress?: () => void;
+  onReorder?: (side: "left" | "right", toEdge: boolean) => void;
   onSelect?: () => void;
   size: ButtonSize;
   sound: PlayableSound;
@@ -30,6 +33,7 @@ export function SoundButton({
   isSelectionDisabled = false,
   isSelected = false,
   onLongPress,
+  onReorder,
   onSelect,
   size,
   sound,
@@ -39,17 +43,24 @@ export function SoundButton({
   const { colors } = useTheme();
   const isPlaying = activeSoundId === sound.id;
   const hasImage = isImageIconReference(sound.iconUri ?? null);
+  const reorderSide = (event: GestureResponderEvent) =>
+    event.nativeEvent.locationX < size / 2 ? "left" : "right";
 
   return (
     <View style={[styles.item, { width: size }]}>
       <Pressable
         accessibilityActions={
-          onLongPress
+          !onReorder && onLongPress
             ? [{ name: "longpress", label: `Organize ${sound.name}` }]
             : undefined
         }
         accessibilityLabel={`Play ${sound.name}`}
-        accessibilityHint={accessibilityHint}
+        accessibilityHint={
+          accessibilityHint ??
+          (onReorder
+            ? "Tap the left or right side to change position. Hold to move to that edge."
+            : undefined)
+        }
         accessibilityRole="button"
         accessibilityState={{
           disabled: isSelectionDisabled,
@@ -67,12 +78,22 @@ export function SoundButton({
         }
         disabled={isSelectionDisabled}
         onAccessibilityAction={(event: AccessibilityActionEvent) => {
-          if (event.nativeEvent.actionName === "longpress") {
+          if (!onReorder && event.nativeEvent.actionName === "longpress") {
             onLongPress?.();
           }
         }}
-        onLongPress={onLongPress}
-        onPress={() => {
+        onLongPress={(event) => {
+          if (onReorder) {
+            onReorder(reorderSide(event), true);
+            return;
+          }
+          onLongPress?.();
+        }}
+        onPress={(event) => {
+          if (onReorder) {
+            onReorder(reorderSide(event), false);
+            return;
+          }
           if (isSelectionDisabled) return;
           if (onSelect) onSelect();
           else play(sound.id, sound.source);
@@ -118,6 +139,7 @@ export function SoundButton({
             <MaterialIcons color="#E74E36" name="check" size={20} />
           </View>
         ) : null}
+        {onReorder ? <ReorderIndicators color={colors.text} /> : null}
       </Pressable>
       <Text
         numberOfLines={2}
