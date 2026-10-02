@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 
 interface ReorderIndicatorsProps {
   color: string;
+  listView: boolean;
 }
 
 const OUTLINE_OFFSETS = [
@@ -19,11 +20,19 @@ const OUTLINE_OFFSETS = [
 interface ReorderArrowProps {
   color: string;
   direction: "left" | "right";
+  listView: boolean;
 }
 
-function ReorderArrow({ color, direction }: ReorderArrowProps) {
+function ReorderArrow({ color, direction, listView }: ReorderArrowProps) {
   return (
-    <View style={[styles.iconStack, direction === "left" && styles.leftArrow]}>
+    <View
+      style={[
+        styles.iconStack,
+        !listView && direction === "left" && styles.leftArrow,
+        listView && direction === "left" && styles.upArrow,
+        listView && direction === "right" && styles.downArrow,
+      ]}
+    >
       {OUTLINE_OFFSETS.map(([x, y], index) => (
         <MaterialIcons
           color="#000000"
@@ -47,14 +56,14 @@ function ReorderArrow({ color, direction }: ReorderArrowProps) {
   );
 }
 
-export function ReorderIndicators({ color }: ReorderIndicatorsProps) {
+export function ReorderIndicators({ color, listView }: ReorderIndicatorsProps) {
   return (
     <View pointerEvents="none" style={styles.container}>
       <View style={[styles.indicator, styles.left]}>
-        <ReorderArrow color={color} direction="left" />
+        <ReorderArrow color={color} direction="left" listView={listView} />
       </View>
       <View style={[styles.indicator, styles.right]}>
-        <ReorderArrow color={color} direction="right" />
+        <ReorderArrow color={color} direction="right" listView={listView} />
       </View>
     </View>
   );
@@ -87,4 +96,6 @@ const styles = StyleSheet.create({
   left: { left: -7 },
   right: { right: -7 },
   leftArrow: { transform: [{ rotate: "180deg" }] },
+  upArrow: { transform: [{ rotate: "-90deg" }] },
+  downArrow: { transform: [{ rotate: "90deg" }] },
 });

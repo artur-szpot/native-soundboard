@@ -11,7 +11,8 @@ The application currently provides:
   labels across Main and nested collections.
 - Persisted directory and randomizer collections rooted at an immutable Main
   collection, with seeded Favorites and Surprise Me examples.
-- Nested directory navigation with breadcrumbs and native stack back behavior.
+- Nested directory navigation with an immediate-parent control and native stack
+  back behavior.
 - Collection creation, sound membership organization, and cycle-safe collection
   reparenting through accessible organizer screens.
 - Collection-grid actions for creating collections, importing sounds, and

@@ -171,6 +171,21 @@ describe("SearchRoute", () => {
     ).toBeOnTheScreen();
   });
 
+  it("keeps list mode neutral and uses the checklist multiselect icon", async () => {
+    mockPreferences.listView = true;
+    const screen = await renderSearch();
+    const listToggle = screen.getByRole("button", {
+      name: "Toggle list view",
+    });
+
+    expect(listToggle).toHaveProp("accessibilityState", { selected: true });
+    expect(listToggle).toHaveStyle({ backgroundColor: "#FFFDF8" });
+    expect(screen.getByTestId("multiselect-icon")).toHaveProp(
+      "name",
+      "checklist",
+    );
+  });
+
   it("plays and edits results like a collection view", async () => {
     const screen = await renderSearch();
 

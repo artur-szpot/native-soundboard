@@ -104,10 +104,11 @@ export function PlaybackProgressOverlay({
     Animated.timing(animatedProgress, {
       duration: remainingDuration,
       easing: Easing.linear,
+      isInteraction: false,
       toValue: 1,
       useNativeDriver: false,
     }).start();
-  }, [animatedProgress, duration, progress, reduceMotion]);
+  }, [animatedProgress, duration, reduceMotion]);
 
   const sectorPath = createProgressSectorPath(displayedProgress, size);
   if (displayedProgress >= 1) {
