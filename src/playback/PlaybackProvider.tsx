@@ -43,7 +43,7 @@ const QUEUE_THRESHOLD_SECONDS = 0.5;
 const PlaybackContext = createContext<PlaybackContextValue | null>(null);
 
 export function PlaybackProvider({ children }: PropsWithChildren) {
-  const player = useAudioPlayer(null, { updateInterval: 100 });
+  const player = useAudioPlayer(null, { updateInterval: 50 });
   const status = useAudioPlayerStatus(player);
   const activeSoundIdRef = useRef<string | null>(null);
   const activeRandomizerIdRef = useRef<string | null>(null);

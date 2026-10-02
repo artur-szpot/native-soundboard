@@ -1,5 +1,8 @@
+import { act, render } from "@testing-library/react-native";
+import { Animated } from "react-native";
 import {
     createProgressSectorPath,
+    PlaybackProgressOverlay,
     remainingPlaybackMilliseconds,
 } from "../src/components/PlaybackProgressOverlay";
 
@@ -37,5 +40,29 @@ describe("createProgressSectorPath", () => {
       createProgressSectorPath(2, 100),
     );
     expect(createProgressSectorPath(1, 100)).toContain(" 0 1 1 ");
+  });
+});
+
+describe("PlaybackProgressOverlay", () => {
+  it("keeps its animation running across audio status updates", async () => {
+    const timing = jest.spyOn(Animated, "timing");
+    const screen = await render(
+      <PlaybackProgressOverlay duration={8} progress={0} size={50} />,
+    );
+    expect(timing).toHaveBeenCalledTimes(1);
+    expect(timing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ isInteraction: false }),
+    );
+
+    await act(async () => {
+      screen.rerender(
+        <PlaybackProgressOverlay duration={8} progress={0.1} size={50} />,
+      );
+    });
+
+    expect(timing).toHaveBeenCalledTimes(1);
+    screen.unmount();
+    timing.mockRestore();
   });
 });

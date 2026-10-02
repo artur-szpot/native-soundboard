@@ -15,7 +15,7 @@ import { DATABASE_NAME, migrateDatabase } from "../src/database/migrate";
 import { PlaybackProvider } from "../src/playback/PlaybackProvider";
 import { RepositoryProvider } from "../src/repositories/RepositoryProvider";
 import { PreferencesProvider } from "../src/settings/PreferencesProvider";
-import { ThemeProvider } from "../src/theme/ThemeProvider";
+import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
 
 function LoadingScreen() {
   const isDark = useColorScheme() === "dark";
@@ -54,6 +54,46 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+function AppStack() {
+  const { colors } = useTheme();
+
+  return (
+    <Stack
+      screenOptions={{
+        animation: "slide_from_right",
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen
+        name="index"
+        options={{
+          animation: "none",
+          contentStyle: { backgroundColor: colors.background },
+          headerBackVisible: false,
+          headerShadowVisible: false,
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerTitle: "",
+        }}
+      />
+      <Stack.Screen
+        name="collections/[collectionId]"
+        options={{
+          animation: "none",
+          contentStyle: { backgroundColor: colors.background },
+          headerBackVisible: false,
+          headerShadowVisible: false,
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerTitle: "",
+        }}
+      />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -68,7 +108,7 @@ export default function RootLayout() {
               <ThemeProvider>
                 <Suspense fallback={<LoadingScreen />}>
                   <PlaybackProvider>
-                    <Stack screenOptions={{ headerShown: false }} />
+                    <AppStack />
                   </PlaybackProvider>
                 </Suspense>
               </ThemeProvider>

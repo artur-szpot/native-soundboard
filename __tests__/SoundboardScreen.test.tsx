@@ -4,6 +4,7 @@ import {
     waitFor,
     within,
 } from "@testing-library/react-native";
+import type { ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import SoundboardScreen from "../app/index";
@@ -14,7 +15,7 @@ import { ThemeProvider } from "../src/theme/ThemeProvider";
 const mockPlay = jest.fn();
 const mockPlayRandomizer = jest.fn();
 const mockPush = jest.fn();
-const mockNavigate = jest.fn();
+const mockSetParams = jest.fn();
 const mockRefresh = jest.fn();
 const mockPreferences = {
   buttonSize: 132 as const,
@@ -123,11 +124,18 @@ const mockOrdering = {
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => "MaterialIcons");
 jest.mock("expo-router", () => ({
+  Stack: {
+    Screen: ({ options }: { options?: { headerRight?: () => ReactNode } }) =>
+      options?.headerRight?.() ?? null,
+  },
   useFocusEffect: (effect: () => void) => {
     const { useEffect } = require("react");
     useEffect(effect, [effect]);
   },
-  useRouter: () => ({ navigate: mockNavigate, push: mockPush }),
+  useRouter: () => ({
+    push: mockPush,
+    setParams: mockSetParams,
+  }),
 }));
 jest.mock("../src/settings/PreferencesProvider", () => ({
   BUTTON_SIZES: [64, 80, 96, 112, 132, 184],
@@ -319,6 +327,7 @@ describe("SoundboardScreen", () => {
     );
     const listToggle = screen.getByRole("button", { name: "Toggle list view" });
     expect(listToggle).toHaveProp("accessibilityState", { selected: true });
+    expect(listToggle).toHaveStyle({ backgroundColor: "#FFFDF8" });
     expect(
       screen.getByRole("button", { name: "Open directory Favorites" }),
     ).toHaveStyle({ width: "100%", minHeight: 56 });
@@ -374,15 +383,35 @@ describe("SoundboardScreen", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Toggle multiselect" }),
     );
+    expect(screen.getByTestId("multiselect-icon")).toHaveProp(
+      "name",
+      "checklist",
+    );
     await fireEvent.press(bloom);
     expect(mockPlay).toHaveBeenCalledTimes(1);
     expect(bloom).toHaveProp("accessibilityState", {
       disabled: false,
       selected: true,
     });
+    expect(bloom).toHaveStyle({ borderColor: "#E74E36", borderWidth: 3 });
+    expect(screen.getByTestId("selection-indicator")).toBeOnTheScreen();
+    expect(screen.getByTestId("sound-icon-bloom").parent).toHaveStyle({
+      borderWidth: 0,
+    });
     await fireEvent.press(
       screen.getByRole("button", { name: "Toggle reorder mode" }),
     );
+    expect(
+      screen.getAllByTestId("reorder-left-indicator")[0].parent,
+    ).toHaveStyle({ transform: [{ rotate: "-90deg" }] });
+    expect(
+      screen.getAllByTestId("reorder-right-indicator")[0].parent,
+    ).toHaveStyle({ transform: [{ rotate: "90deg" }] });
+    expect(screen.getByTestId("reorder-toggle-icon")).toHaveProp(
+      "name",
+      "import-export",
+    );
+    expect(bloom).toHaveStyle({ paddingHorizontal: 36 });
     await fireEvent(bloom, "layout", {
       nativeEvent: { layout: { width: 350 } },
     });
@@ -554,6 +583,7 @@ describe("SoundboardScreen", () => {
 
   it("shows collection actions last and opens their active-collection routes", async () => {
     mockCurrentCollection = mockFavorites;
+    mockPreferences.listView = true;
     const screen = await renderCollection("favorites");
 
     const addButton = await screen.findByRole("button", {
@@ -561,6 +591,12 @@ describe("SoundboardScreen", () => {
     });
     const importButton = screen.getByRole("button", { name: "Import sound" });
     const settingsButton = screen.getByRole("button", { name: "Settings" });
+    for (const action of [addButton, importButton, settingsButton]) {
+      expect(action).not.toHaveStyle({ borderWidth: 2 });
+    }
+    for (const icon of screen.getAllByTestId("list-action-icon")) {
+      expect(icon).not.toHaveStyle({ borderWidth: 2 });
+    }
     const buttons = screen.getAllByRole("button");
     expect(buttons.slice(-3)).toEqual([
       addButton,
@@ -599,22 +635,30 @@ describe("SoundboardScreen", () => {
     expect(mockPush).toHaveBeenCalledWith("/organize/collection/favorites");
   });
 
-  it("shows breadcrumbs in nested directories and navigates to Main", async () => {
-    mockCurrentCollection = mockFavorites;
-    mockAncestors = [mockMain];
+  it("shows the immediate parent action in nested directories", async () => {
+    mockCurrentCollection = {
+      ...mockSurprise,
+      name: "Nested collection",
+      parentId: "favorites",
+    };
+    mockAncestors = [mockMain, mockFavorites];
     mockChildren = [];
     mockDirectSounds = [];
-    const screen = await renderCollection("favorites");
+    const screen = await renderCollection("nested");
 
     await screen.findByRole("button", { name: "Add new collection" });
     expect(screen.getByText("This collection is empty.")).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole("link", { name: "Main" }));
+    expect(screen.queryByLabelText("Breadcrumbs")).toBeNull();
+    const parentButton = screen.getByRole("button", {
+      name: "Go to parent collection Favorites",
+    });
+    expect(within(parentButton).getByText("Favorites")).toHaveStyle({
+      textAlign: "right",
+    });
+    await fireEvent.press(parentButton);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/");
-    expect(mockSounds.listByCollection).toHaveBeenCalledWith(
-      "favorites",
-      false,
-    );
+    expect(mockSetParams).toHaveBeenCalledWith({ collectionId: "favorites" });
+    expect(mockSounds.listByCollection).toHaveBeenCalledWith("nested", false);
   });
 
   it("keeps an empty randomizer available for hold-to-open navigation", async () => {

@@ -357,7 +357,6 @@ export default function SearchRoute() {
             style={({ pressed }) => [
               styles.headerButton,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              listView && { backgroundColor: colors.accent },
               pressed && styles.pressed,
             ]}
           >
@@ -383,7 +382,12 @@ export default function SearchRoute() {
               pressed && styles.pressed,
             ]}
           >
-            <MaterialIcons color={colors.text} name="checklist" size={28} />
+            <MaterialIcons
+              color={colors.text}
+              name="checklist"
+              size={28}
+              testID="multiselect-icon"
+            />
           </Pressable>
           <Pressable
             accessibilityLabel="Close"

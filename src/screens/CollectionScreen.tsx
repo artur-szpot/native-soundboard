@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { type Href, useFocusEffect, useRouter } from "expo-router";
+import { type Href, Stack, useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -10,7 +10,6 @@ import {
     Easing,
     FlatList,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -68,6 +67,124 @@ interface CollectionData {
 
 interface CollectionScreenProps {
   collectionId: string;
+}
+
+interface CollectionHeaderActionsProps {
+  collectionId: string;
+  isReorderMode: boolean;
+  isSelectionMode: boolean;
+  listView: boolean;
+  onClearSelection: () => void;
+  onToggleListView: () => void;
+  onToggleReorderMode: () => void;
+  onToggleSelectionMode: () => void;
+}
+
+function CollectionHeaderActions({
+  collectionId,
+  isReorderMode,
+  isSelectionMode,
+  listView,
+  onClearSelection,
+  onToggleListView,
+  onToggleReorderMode,
+  onToggleSelectionMode,
+}: CollectionHeaderActionsProps) {
+  const router = useRouter();
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.headerActions}>
+      <Pressable
+        accessibilityLabel="Toggle list view"
+        accessibilityRole="button"
+        accessibilityState={{ selected: listView }}
+        onPress={onToggleListView}
+        style={({ pressed }) => [
+          styles.menuButton,
+          { borderColor: colors.border, backgroundColor: colors.surface },
+          pressed && styles.pressed,
+        ]}
+      >
+        <MaterialIcons
+          color={colors.text}
+          name={listView ? "grid-view" : "view-list"}
+          size={28}
+        />
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Toggle reorder mode"
+        accessibilityRole="button"
+        accessibilityState={{ selected: isReorderMode }}
+        onPress={onToggleReorderMode}
+        style={({ pressed }) => [
+          styles.menuButton,
+          { borderColor: colors.border, backgroundColor: colors.surface },
+          isReorderMode && { backgroundColor: colors.accent },
+          pressed && styles.pressed,
+        ]}
+      >
+        <MaterialIcons
+          color={colors.text}
+          name="import-export"
+          size={28}
+          testID="reorder-toggle-icon"
+        />
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Toggle multiselect"
+        accessibilityRole="button"
+        accessibilityState={{ selected: isSelectionMode }}
+        onPress={onToggleSelectionMode}
+        style={({ pressed }) => [
+          styles.menuButton,
+          { borderColor: colors.border, backgroundColor: colors.surface },
+          isSelectionMode && { backgroundColor: colors.accent },
+          pressed && styles.pressed,
+        ]}
+      >
+        <MaterialIcons
+          color={colors.text}
+          name="checklist"
+          size={28}
+          testID="multiselect-icon"
+        />
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Search"
+        accessibilityRole="button"
+        onPress={() => {
+          onClearSelection();
+          router.push("/search" as Href);
+        }}
+        style={({ pressed }) => [
+          styles.menuButton,
+          { borderColor: colors.border, backgroundColor: colors.surface },
+          pressed && styles.pressed,
+        ]}
+      >
+        <MaterialIcons color={colors.text} name="search" size={28} />
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Open menu"
+        accessibilityRole="button"
+        onPress={() => {
+          onClearSelection();
+          router.push({
+            pathname: "/menu",
+            params: { collectionId },
+          } as Href);
+        }}
+        style={({ pressed }) => [
+          styles.menuButton,
+          { borderColor: colors.border, backgroundColor: colors.surface },
+          pressed && styles.pressed,
+        ]}
+      >
+        <MaterialIcons color={colors.text} name="menu" size={28} />
+      </Pressable>
+    </View>
+  );
 }
 
 export function CollectionScreen({ collectionId }: CollectionScreenProps) {
@@ -362,6 +479,8 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
     );
   };
 
+  const parentCollection = data.ancestors[data.ancestors.length - 1];
+
   const itemKey = (item: GridItem) =>
     item.kind === "action"
       ? `${item.kind}:${item.action}`
@@ -569,10 +688,8 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
           ]}
         >
           <View
-            style={[
-              styles.listActionIcon,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
+            style={[styles.listActionIcon, { backgroundColor: colors.surface }]}
+            testID="list-action-icon"
           >
             <MaterialIcons color={colors.text} name={action.icon} size={34} />
           </View>
@@ -640,135 +757,59 @@ export function CollectionScreen({ collectionId }: CollectionScreenProps) {
 
   return (
     <SafeAreaView
+      edges={["left", "right", "bottom"]}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <CollectionHeaderActions
+              collectionId={collectionId}
+              isReorderMode={isReorderMode}
+              isSelectionMode={isSelectionMode}
+              listView={listView}
+              onClearSelection={clearSelection}
+              onToggleListView={toggleListView}
+              onToggleReorderMode={toggleReorderMode}
+              onToggleSelectionMode={toggleSelectionMode}
+            />
+          ),
+        }}
+      />
       <View style={styles.header}>
-        <Text
-          accessibilityRole="header"
-          style={[styles.title, { color: colors.text }]}
-        >
-          {data.collection.name.toUpperCase()}
-        </Text>
-        <View style={styles.headerActions}>
-          <Pressable
-            accessibilityLabel="Toggle list view"
-            accessibilityRole="button"
-            accessibilityState={{ selected: listView }}
-            onPress={toggleListView}
-            style={({ pressed }) => [
-              styles.menuButton,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              listView && { backgroundColor: colors.accent },
-              pressed && styles.pressed,
-            ]}
+        <View style={styles.collectionNavigation}>
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={[styles.title, { color: colors.text }]}
           >
-            <MaterialIcons
-              color={colors.text}
-              name={listView ? "grid-view" : "view-list"}
-              size={28}
-            />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Toggle reorder mode"
-            accessibilityRole="button"
-            accessibilityState={{ selected: isReorderMode }}
-            onPress={toggleReorderMode}
-            style={({ pressed }) => [
-              styles.menuButton,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              isReorderMode && { backgroundColor: colors.accent },
-              pressed && styles.pressed,
-            ]}
-          >
-            <MaterialIcons
-              color={colors.text}
-              name="drag-indicator"
-              size={28}
-            />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Toggle multiselect"
-            accessibilityRole="button"
-            accessibilityState={{ selected: isSelectionMode }}
-            onPress={toggleSelectionMode}
-            style={({ pressed }) => [
-              styles.menuButton,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              isSelectionMode && { backgroundColor: colors.accent },
-              pressed && styles.pressed,
-            ]}
-          >
-            <MaterialIcons color={colors.text} name="checklist" size={28} />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Search"
-            accessibilityRole="button"
-            onPress={() => {
-              clearSelection();
-              router.push("/search" as Href);
-            }}
-            style={({ pressed }) => [
-              styles.menuButton,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              pressed && styles.pressed,
-            ]}
-          >
-            <MaterialIcons color={colors.text} name="search" size={28} />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Open menu"
-            accessibilityRole="button"
-            onPress={() => {
-              clearSelection();
-              router.push({
-                pathname: "/menu",
-                params: { collectionId },
-              } as Href);
-            }}
-            style={({ pressed }) => [
-              styles.menuButton,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              pressed && styles.pressed,
-            ]}
-          >
-            <MaterialIcons color={colors.text} name="menu" size={28} />
-          </Pressable>
+            {data.collection.name.toUpperCase()}
+          </Text>
+          {parentCollection ? (
+            <Pressable
+              accessibilityLabel={`Go to parent collection ${parentCollection.name}`}
+              accessibilityRole="button"
+              onPress={() => {
+                clearSelection();
+                router.setParams({ collectionId: parentCollection.id });
+              }}
+              style={styles.parentButton}
+            >
+              <MaterialIcons
+                color={colors.text}
+                name="arrow-upward"
+                size={20}
+              />
+              <Text
+                numberOfLines={1}
+                style={[styles.parentLabel, { color: colors.text }]}
+              >
+                {parentCollection.name}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
-
-      {data.ancestors.length > 0 ? (
-        <ScrollView
-          accessibilityLabel="Breadcrumbs"
-          contentContainerStyle={styles.breadcrumbs}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.breadcrumbScroller}
-        >
-          {data.ancestors.map((ancestor) => (
-            <View key={ancestor.id} style={styles.breadcrumbItem}>
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => {
-                  clearSelection();
-                  router.navigate(collectionHref(ancestor.id));
-                }}
-              >
-                <Text style={[styles.breadcrumbText, { color: colors.text }]}>
-                  {ancestor.name}
-                </Text>
-              </Pressable>
-              <MaterialIcons
-                color={colors.mutedText}
-                name="chevron-right"
-                size={18}
-              />
-            </View>
-          ))}
-          <Text style={[styles.breadcrumbCurrent, { color: colors.mutedText }]}>
-            {data.collection.name}
-          </Text>
-        </ScrollView>
-      ) : null}
 
       {playbackError || data.unavailableCount > 0 ? (
         <Text
@@ -835,21 +876,38 @@ const styles = StyleSheet.create({
     padding: PAGE_PADDING,
   },
   header: {
-    minHeight: 64,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+    gap: 8,
     paddingHorizontal: PAGE_PADDING,
     paddingVertical: 8,
   },
   title: {
-    flexShrink: 1,
-    minWidth: 90,
+    flex: 2,
+    minWidth: 0,
     fontFamily: "Courier",
     fontSize: 22,
     fontWeight: "700",
+  },
+  collectionNavigation: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  parentButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+  },
+  parentLabel: {
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "right",
   },
   menuButton: {
     width: 44,
@@ -859,7 +917,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
   },
-  headerActions: { flexDirection: "row", gap: 10 },
+  headerActions: { flexDirection: "row", gap: 6 },
   modifyButton: {
     minHeight: 52,
     alignItems: "center",
@@ -871,15 +929,6 @@ const styles = StyleSheet.create({
   },
   modifyLabel: { fontFamily: "Courier", fontSize: 16, fontWeight: "700" },
   disabled: { opacity: 0.42 },
-  breadcrumbs: {
-    minHeight: 40,
-    alignItems: "center",
-    paddingHorizontal: PAGE_PADDING,
-  },
-  breadcrumbScroller: { flexGrow: 0 },
-  breadcrumbItem: { flexDirection: "row", alignItems: "center" },
-  breadcrumbText: { fontSize: 15, fontWeight: "700" },
-  breadcrumbCurrent: { fontSize: 15 },
   message: { fontSize: 16, textAlign: "center" },
   retryButton: {
     minWidth: 132,
@@ -908,16 +957,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderRadius: 6,
-    borderWidth: 2,
   },
   listActionIcon: {
     width: 56,
     height: 56,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 4,
-    borderWidth: 2,
   },
   listActionLabel: {
     flex: 1,

@@ -101,8 +101,11 @@ export function CollectionButton({
           size={iconSize - 6}
         />
       ) : null}
-      {isSelected ? (
-        <View style={styles.selectionMark}>
+      {isSelected && !listView ? (
+        <View
+          style={[styles.selectionMark, styles.tileSelectionMark]}
+          testID="selection-indicator"
+        >
           <MaterialIcons color="#E74E36" name="check" size={20} />
         </View>
       ) : null}
@@ -175,6 +178,7 @@ export function CollectionButton({
         style={({ pressed }) => [
           styles.button,
           listView && styles.listButton,
+          listView && onReorder && styles.listButtonReorder,
           {
             width: listView ? "100%" : size,
             minHeight: listView ? iconSize : undefined,
@@ -186,13 +190,18 @@ export function CollectionButton({
                 : listView
                   ? colors.surface
                   : colors.collection,
-            borderColor:
-              isSelected && !listView
+            borderColor: listView
+              ? isSelected
                 ? "#E74E36"
-                : hasImage && collection.hideBorder && !listView
+                : isPlayingRandomizer
+                  ? colors.playing
+                  : colors.surface
+              : isSelected
+                ? "#E74E36"
+                : hasImage && collection.hideBorder
                   ? colors.background
                   : colors.border,
-            borderWidth: isSelected && !listView ? 5 : listView ? 2 : 3,
+            borderWidth: listView ? 3 : isSelected ? 5 : 3,
             shadowColor: colors.shadow,
           },
           pressed && styles.buttonPressed,
@@ -210,11 +219,8 @@ export function CollectionButton({
                   backgroundColor: hasImage
                     ? colors.background
                     : colors.collection,
-                  borderColor: isSelected
-                    ? "#E74E36"
-                    : hasImage && collection.hideBorder
-                      ? colors.background
-                      : colors.border,
+                  borderColor: colors.background,
+                  borderWidth: 0,
                 },
               ]}
             >
@@ -229,11 +235,18 @@ export function CollectionButton({
             >
               {collection.name}
             </Text>
+            {isSelected ? (
+              <View style={styles.selectionMark} testID="selection-indicator">
+                <MaterialIcons color="#E74E36" name="check" size={20} />
+              </View>
+            ) : null}
           </>
         ) : (
           artwork
         )}
-        {onReorder ? <ReorderIndicators color={colors.text} /> : null}
+        {onReorder ? (
+          <ReorderIndicators color={colors.text} listView={listView} />
+        ) : null}
       </Pressable>
       {!listView ? (
         <Text
@@ -268,7 +281,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     paddingVertical: 10,
   },
-  listLabelReorder: { paddingRight: 42 },
+  listLabelReorder: { paddingRight: 0 },
+  listButtonReorder: { paddingHorizontal: 36 },
   button: {
     alignItems: "center",
     justifyContent: "center",
@@ -280,9 +294,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   selectionMark: {
-    position: "absolute",
-    right: 6,
-    bottom: 6,
     width: 28,
     height: 28,
     alignItems: "center",
@@ -292,6 +303,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 2,
   },
+  tileSelectionMark: { position: "absolute", right: 6, bottom: 6 },
   buttonPressed: {
     transform: [{ translateX: 4 }, { translateY: 4 }],
     shadowOffset: { width: 2, height: 2 },
